@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /B \"D:\\\\Hamza\\\\Self\\\\Development\\\\rivayat-inventory\")",
+      "Bash(dir *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(supabase --version)",
+      "Bash(psql *)",
+      "Bash(node -e \"require\\('pg'\\); console.log\\('pg available'\\)\")",
+      "Bash(cd /d \"D:\\\\Hamza\\\\Self\\\\Development\\\\rivayat-inventory\")",
+      "Bash(node -e \"require\\('pg'\\)\")",
+      "Bash(node --env-file=.env.local scripts/apply-schema.mjs)"
+    ]
+  }
+}
