@@ -377,7 +377,7 @@ export function Dashboard({ skus, sales, purchases, exchangeRate }: DashboardPro
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(value: number) => formatPKR(value)}
+                    formatter={(value: any) => formatPKR(value)}
                     contentStyle={{ 
                       background: 'rgba(18, 16, 14, 0.95)', 
                       border: '1px solid rgba(212, 175, 55, 0.2)', 
