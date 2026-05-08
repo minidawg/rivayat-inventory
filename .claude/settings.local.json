@@ -18,7 +18,10 @@
       "Bash(Get-ChildItem -Path \"D:\\\\Hamza\\\\Self\\\\Development\\\\rivayat-inventory\\\\src\" -Recurse -Force)",
       "Bash(Select-Object FullName)",
       "Bash(ConvertTo-Csv -NoTypeInformation)",
-      "Bash(Out-String)"
+      "Bash(Out-String)",
+      "Bash(npx vercel *)",
+      "Read(//c/Users/syed.hamza/AppData/Roaming/com.vercel.cli/**)",
+      "Read(//c/Users/syed.hamza/.config/vercel/**)"
     ]
   }
 }
