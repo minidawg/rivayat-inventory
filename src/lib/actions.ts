@@ -18,7 +18,6 @@ export async function stockIn(
   const client = await getSupabaseServerClient()
   const totalCostPerUnit = costPKR + commissionPKR + shippingPKR
 
-  // Find or create article
   let { data: article } = await client
     .from('articles')
     .select('id')
@@ -90,12 +89,15 @@ export async function stockIn(
   }
 }
 
-// ─── Record Sale ──────────────────────────────────────────────────────────────
+// ─── Record Sale ─────────────────────────────────────────────────────────────
+// sellingPriceUSD: the price in USD (primary currency, stored in selling_price column)
+// avgCostPKR:      the cost basis in PKR (stored in cost_pkr_at_sale)
+// exchangeRate:    PKR/USD rate at time of sale (stored in exchange_rate_at_sale)
 
 export async function recordSale(
   skuId: string,
   quantity: number,
-  sellingPrice: number,
+  sellingPriceUSD: number,
   channel: string,
   clientName: string,
   avgCostPKR: number,
@@ -121,7 +123,7 @@ export async function recordSale(
   const { error: saleError } = await client.from('sales').insert({
     sku_id: skuId,
     quantity,
-    selling_price: sellingPrice,
+    selling_price: sellingPriceUSD,   // stored as USD
     cost_pkr_at_sale: avgCostPKR,
     exchange_rate_at_sale: exchangeRate,
     channel: channel || null,
@@ -159,7 +161,7 @@ export async function deleteSale(saleId: string) {
   if (error) throw error
 }
 
-// ─── Inventory edits ─────────────────────────────────────────────────────────
+// ─── Inventory edits ──────────────────────────────────────────────────────────
 
 export async function updateSKUQuantity(skuId: string, quantity: number) {
   const client = await getSupabaseServerClient()
@@ -167,13 +169,35 @@ export async function updateSKUQuantity(skuId: string, quantity: number) {
   if (error) throw error
 }
 
-export async function updateArticle(articleId: string, updates: { name?: string }) {
+export async function updateSku(
+  skuId: string,
+  updates: { quantity?: number; lowStockBuffer?: number; avgCostPKR?: number },
+) {
+  const client = await getSupabaseServerClient()
+  const { error } = await client.from('skus').update({
+    ...(updates.quantity !== undefined      && { quantity:          updates.quantity }),
+    ...(updates.lowStockBuffer !== undefined && { low_stock_buffer: updates.lowStockBuffer }),
+    ...(updates.avgCostPKR !== undefined    && { avg_cost_pkr:      updates.avgCostPKR }),
+  }).eq('id', skuId)
+  if (error) throw error
+}
+
+export async function updateArticle(
+  articleId: string,
+  updates: { name?: string; collection_id?: string },
+) {
   const client = await getSupabaseServerClient()
   const { error } = await client.from('articles').update(updates).eq('id', articleId)
   if (error) throw error
 }
 
-// ─── Brands & Collections ────────────────────────────────────────────────────
+export async function deleteArticle(articleId: string) {
+  const client = await getSupabaseServerClient()
+  const { error } = await client.from('articles').delete().eq('id', articleId)
+  if (error) throw error
+}
+
+// ─── Brands & Collections ─────────────────────────────────────────────────────
 
 export async function addBrand(name: string) {
   const client = await getSupabaseServerClient()
@@ -201,7 +225,6 @@ export async function deleteCollection(collectionId: string) {
 
 export async function clearAllData() {
   const client = await getSupabaseServerClient()
-  // Delete in FK-safe order; catch errors individually so partial clears still work
   await client.from('sales').delete().not('id', 'is', null)
   await client.from('purchases').delete().not('id', 'is', null)
   await client.from('skus').delete().not('id', 'is', null)

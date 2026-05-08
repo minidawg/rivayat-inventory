@@ -10,7 +10,15 @@
       "Bash(node -e \"require\\('pg'\\); console.log\\('pg available'\\)\")",
       "Bash(cd /d \"D:\\\\Hamza\\\\Self\\\\Development\\\\rivayat-inventory\")",
       "Bash(node -e \"require\\('pg'\\)\")",
-      "Bash(node --env-file=.env.local scripts/apply-schema.mjs)"
+      "Bash(node --env-file=.env.local scripts/apply-schema.mjs)",
+      "Bash(node *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Hamza\\\\Self\\\\Development\\\\rivayat-inventory\\\\src\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(ConvertTo-Csv -NoTypeInformation)",
+      "Bash(Out-String)"
     ]
   }
 }

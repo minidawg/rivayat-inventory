@@ -73,14 +73,18 @@ export interface SkuForStats {
   id: string
   quantity: number
   lowStockBuffer: number
+  avgCostPKR: number
 }
 
 export interface SaleRow {
   id: string
   createdAt: string
   quantity: number
+  /** Selling price in USD — primary currency */
   sellingPrice: number
+  /** Cost basis in PKR at time of sale */
   costPKRAtSale: number | null
+  /** PKR/USD exchange rate locked at time of sale */
   exchangeRateAtSale: number | null
   channel: string | null
   clientName: string | null
@@ -90,7 +94,7 @@ export interface SaleRow {
   brandName: string
 }
 
-/** Alias kept so dashboard panel import compiles without change. */
+/** Alias kept for import compatibility. */
 export type SaleWithDetails = SaleRow
 
 export interface PurchaseRow {
@@ -114,6 +118,7 @@ export interface ArticleInventory {
   articleName: string
   brandId: string
   brandName: string
+  collectionId: string
   collectionName: string
   totalQuantity: number
   skus: {

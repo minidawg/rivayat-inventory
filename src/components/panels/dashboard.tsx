@@ -1,32 +1,15 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { formatPKR, formatUSD } from '@/lib/data'
 import type { SkuForStats, SaleRow, PurchaseRow } from '@/lib/types'
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from 'recharts'
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Package, 
-  DollarSign, 
-  ShoppingBag, 
-  AlertTriangle,
-  ArrowUpRight,
-  Sparkles,
-  Crown
+import {
+  TrendingUp, TrendingDown, Package, DollarSign, ShoppingBag,
+  AlertTriangle, Sparkles, Crown, BarChart2, Users, ArrowUpRight, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,479 +20,546 @@ interface DashboardProps {
   exchangeRate: number
 }
 
+function TrendBadge({ pct }: { pct: number | null }) {
+  if (pct === null) return null
+  const up = pct >= 0
+  return (
+    <div className={cn(
+      'flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular',
+      up ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive',
+    )}>
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {up ? '+' : ''}{pct.toFixed(1)}%
+    </div>
+  )
+}
+
+const BRAND_COLORS = ['#D4AF37', '#4ADE80', '#F59E0B', '#818CF8', '#EC4899', '#34D399']
+
 export function Dashboard({ skus, sales, purchases, exchangeRate }: DashboardProps) {
+  const [expandedCard, setExpandedCard] = useState<string | null>(null)
 
+  // ── Core metrics ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const totalItems = skus.reduce((sum, s) => sum + s.quantity, 0)
+    const totalItems    = skus.reduce((s, x) => s + x.quantity, 0)
     const lowStockItems = skus.filter(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer).length
-    const outOfStockItems = skus.filter(s => s.quantity === 0).length
+    const outOfStock    = skus.filter(s => s.quantity === 0).length
+    const inventoryValuePKR = skus.reduce((s, x) => s + x.avgCostPKR * x.quantity, 0)
 
-    const totalRevenue = sales.reduce((sum, s) => sum + s.sellingPrice * s.quantity, 0)
-    const totalCost = sales.reduce((sum, s) => sum + (s.costPKRAtSale || 0) * s.quantity, 0)
-    const totalProfit = totalRevenue - totalCost
-
-    const totalPurchases = purchases.reduce((sum, p) => {
-      const total = (p.costPKR + p.commissionPKR + p.shippingPKR) * p.quantity
-      return sum + total
+    // sellingPrice is stored as USD
+    const totalRevenueUSD = sales.reduce((s, x) => s + x.sellingPrice * x.quantity, 0)
+    const totalCostUSD    = sales.reduce((s, x) => {
+      const rate = x.exchangeRateAtSale || exchangeRate
+      return s + (x.costPKRAtSale || 0) / rate * x.quantity
     }, 0)
-
-    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0
+    const totalProfitUSD  = totalRevenueUSD - totalCostUSD
+    const profitMargin    = totalRevenueUSD > 0 ? (totalProfitUSD / totalRevenueUSD) * 100 : 0
+    const avgOrderUSD     = sales.length > 0 ? totalRevenueUSD / sales.length : 0
 
     return {
-      totalItems,
-      lowStockItems,
-      outOfStockItems,
-      totalRevenue,
-      totalProfit,
-      totalPurchases,
-      salesCount: sales.length,
-      profitMargin,
+      totalItems, lowStockItems, outOfStock,
+      inventoryValuePKR, inventoryValueUSD: inventoryValuePKR / exchangeRate,
+      totalRevenueUSD, totalCostUSD, totalProfitUSD, profitMargin,
+      salesCount: sales.length, avgOrderUSD,
     }
-  }, [skus, sales, purchases])
+  }, [skus, sales, exchangeRate])
 
-  // Monthly revenue data for chart (last 6 months)
+  // ── Monthly trend (current vs previous month) ─────────────────────────────
+  const trends = useMemo(() => {
+    const now   = new Date()
+    const currStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+    const curr = sales.filter(s => new Date(s.createdAt) >= currStart)
+    const prev = sales.filter(s => { const d = new Date(s.createdAt); return d >= prevStart && d < currStart })
+
+    function revOf(arr: SaleRow[]) { return arr.reduce((s, x) => s + x.sellingPrice * x.quantity, 0) }
+    function profOf(arr: SaleRow[]) {
+      return arr.reduce((s, x) => {
+        const rate = x.exchangeRateAtSale || exchangeRate
+        return s + (x.sellingPrice - (x.costPKRAtSale || 0) / rate) * x.quantity
+      }, 0)
+    }
+
+    const currRev  = revOf(curr);  const prevRev  = revOf(prev)
+    const currProf = profOf(curr); const prevProf = profOf(prev)
+
+    const revTrend  = prevRev  > 0 ? (currRev  - prevRev)  / prevRev  * 100 : null
+    const profTrend = prevProf > 0 ? (currProf - prevProf) / prevProf * 100 : null
+
+    return { revTrend, profTrend }
+  }, [sales, exchangeRate])
+
+  // ── Monthly chart (6 months, USD) ─────────────────────────────────────────
   const monthlyData = useMemo(() => {
     const months: Record<string, { revenue: number; profit: number }> = {}
     const now = new Date()
-    
     for (let i = 5; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const key = date.toLocaleDateString('en-US', { month: 'short' })
-      months[key] = { revenue: 0, profit: 0 }
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months[d.toLocaleDateString('en-US', { month: 'short' })] = { revenue: 0, profit: 0 }
     }
-
-    for (const sale of sales) {
-      const date = new Date(sale.createdAt)
-      const key = date.toLocaleDateString('en-US', { month: 'short' })
+    for (const s of sales) {
+      const key = new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short' })
       if (months[key]) {
-        months[key].revenue += sale.sellingPrice * sale.quantity
-        months[key].profit += (sale.sellingPrice - (sale.costPKRAtSale || 0)) * sale.quantity
+        const rate = s.exchangeRateAtSale || exchangeRate
+        months[key].revenue += s.sellingPrice * s.quantity
+        months[key].profit  += (s.sellingPrice - (s.costPKRAtSale || 0) / rate) * s.quantity
       }
     }
+    return Object.entries(months).map(([month, d]) => ({ month, ...d }))
+  }, [sales, exchangeRate])
 
-    return Object.entries(months).map(([month, data]) => ({
-      month,
-      revenue: data.revenue,
-      profit: data.profit,
-    }))
-  }, [sales])
-
-  // Top selling articles
+  // ── Top sellers ───────────────────────────────────────────────────────────
   const topSellers = useMemo(() => {
-    const articleSales: Record<string, { name: string; brand: string; qty: number; revenue: number }> = {}
-
-    for (const sale of sales) {
-      const key = sale.articleId
-      if (!articleSales[key]) {
-        articleSales[key] = {
-          name: sale.articleName,
-          brand: sale.brandName,
-          qty: 0,
-          revenue: 0,
-        }
-      }
-      articleSales[key].qty += sale.quantity
-      articleSales[key].revenue += sale.sellingPrice * sale.quantity
+    const map: Record<string, { name: string; brand: string; qty: number; revenue: number }> = {}
+    for (const s of sales) {
+      if (!map[s.articleId]) map[s.articleId] = { name: s.articleName, brand: s.brandName, qty: 0, revenue: 0 }
+      map[s.articleId].qty     += s.quantity
+      map[s.articleId].revenue += s.sellingPrice * s.quantity
     }
-
-    return Object.values(articleSales)
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 5)
+    return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 5)
   }, [sales])
 
-  // Top clients
+  // ── Top clients ───────────────────────────────────────────────────────────
   const topClients = useMemo(() => {
-    const clientData: Record<string, { name: string; orders: number; spent: number }> = {}
-
-    for (const sale of sales) {
-      const name = sale.clientName || 'Anonymous'
-      if (!clientData[name]) {
-        clientData[name] = { name, orders: 0, spent: 0 }
-      }
-      clientData[name].orders += 1
-      clientData[name].spent += sale.sellingPrice * sale.quantity
+    const map: Record<string, { name: string; orders: number; spent: number }> = {}
+    for (const s of sales) {
+      const n = s.clientName || 'Anonymous'
+      if (!map[n]) map[n] = { name: n, orders: 0, spent: 0 }
+      map[n].orders += 1
+      map[n].spent  += s.sellingPrice * s.quantity
     }
-
-    return Object.values(clientData)
-      .filter(c => c.name !== 'Anonymous')
-      .sort((a, b) => b.spent - a.spent)
-      .slice(0, 5)
+    return Object.values(map).filter(c => c.name !== 'Anonymous').sort((a, b) => b.spent - a.spent).slice(0, 5)
   }, [sales])
 
-  // Profit breakdown by category (brand)
+  // ── Profit by brand (donut) ───────────────────────────────────────────────
   const profitByBrand = useMemo(() => {
-    const brandProfit: Record<string, number> = {}
-
-    for (const sale of sales) {
-      if (!brandProfit[sale.brandName]) {
-        brandProfit[sale.brandName] = 0
-      }
-      brandProfit[sale.brandName] += (sale.sellingPrice - (sale.costPKRAtSale || 0)) * sale.quantity
+    const map: Record<string, number> = {}
+    for (const s of sales) {
+      const rate = s.exchangeRateAtSale || exchangeRate
+      const profit = (s.sellingPrice - (s.costPKRAtSale || 0) / rate) * s.quantity
+      map[s.brandName] = (map[s.brandName] || 0) + profit
     }
-
-    const colors = ['#d4af37', '#4ade80', '#f59e0b', '#6366f1', '#ec4899']
-    return Object.entries(brandProfit)
-      .map(([name, value], i) => ({
-        name,
-        value,
-        color: colors[i % colors.length],
-      }))
+    const total = Object.values(map).reduce((a, b) => a + b, 0)
+    return Object.entries(map)
+      .map(([name, value], i) => ({ name, value, color: BRAND_COLORS[i % BRAND_COLORS.length], pct: total > 0 ? value / total * 100 : 0 }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
+      .slice(0, 6)
+  }, [sales, exchangeRate])
+
+  // ── Revenue by channel (drill-down) ──────────────────────────────────────
+  const revenueByChannel = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const s of sales) {
+      const ch = s.channel || 'Unknown'
+      map[ch] = (map[ch] || 0) + s.sellingPrice * s.quantity
+    }
+    return Object.entries(map).sort((a, b) => b[1] - a[1])
   }, [sales])
 
-  const statCards = [
+  // ── KPI cards ─────────────────────────────────────────────────────────────
+  const kpiCards = [
     {
-      label: 'Total Items',
-      value: stats.totalItems.toLocaleString(),
-      subtext: `${stats.lowStockItems} low stock`,
+      id: 'inventory',
+      label: 'Inventory Value',
+      value: formatUSD(stats.inventoryValueUSD),
+      sub: formatPKR(stats.inventoryValuePKR),
       icon: Package,
-      trend: stats.lowStockItems > 0 ? 'warning' : 'neutral',
-      gradient: 'from-blue-500/20 to-cyan-500/20',
-      iconBg: 'bg-blue-500/20',
+      iconBg: 'bg-blue-500/15',
       iconColor: 'text-blue-400',
+      trend: null,
+      warn: stats.lowStockItems > 0,
     },
     {
+      id: 'revenue',
       label: 'Total Revenue',
-      value: formatUSD(stats.totalRevenue / exchangeRate),
-      subtext: formatPKR(stats.totalRevenue),
+      value: formatUSD(stats.totalRevenueUSD),
+      sub: `${stats.salesCount} transactions`,
       icon: DollarSign,
-      trend: 'up',
-      gradient: 'from-primary/20 to-amber-500/20',
-      iconBg: 'bg-primary/20',
+      iconBg: 'bg-primary/15',
       iconColor: 'text-primary',
+      trend: trends.revTrend,
+      warn: false,
     },
     {
+      id: 'profit',
       label: 'Net Profit',
-      value: formatUSD(stats.totalProfit / exchangeRate),
-      subtext: `${stats.profitMargin.toFixed(1)}% margin`,
+      value: formatUSD(stats.totalProfitUSD),
+      sub: `${stats.profitMargin.toFixed(1)}% margin`,
       icon: TrendingUp,
-      trend: stats.totalProfit > 0 ? 'up' : 'down',
-      gradient: 'from-success/20 to-emerald-500/20',
-      iconBg: 'bg-success/20',
+      iconBg: 'bg-success/15',
       iconColor: 'text-success',
+      trend: trends.profTrend,
+      warn: false,
     },
     {
+      id: 'sales',
       label: 'Total Sales',
       value: stats.salesCount.toString(),
-      subtext: 'transactions',
+      sub: 'transactions',
       icon: ShoppingBag,
-      trend: 'neutral',
-      gradient: 'from-purple-500/20 to-pink-500/20',
-      iconBg: 'bg-purple-500/20',
+      iconBg: 'bg-purple-500/15',
       iconColor: 'text-purple-400',
+      trend: null,
+      warn: false,
+    },
+    {
+      id: 'aov',
+      label: 'Avg Order Value',
+      value: formatUSD(stats.avgOrderUSD),
+      sub: 'per transaction',
+      icon: BarChart2,
+      iconBg: 'bg-amber-500/15',
+      iconColor: 'text-amber-400',
+      trend: null,
+      warn: false,
+    },
+    {
+      id: 'top',
+      label: 'Top Article',
+      value: topSellers[0]?.name ?? '—',
+      sub: topSellers[0] ? `${topSellers[0].qty} units sold` : 'No sales yet',
+      icon: Crown,
+      iconBg: 'bg-primary/15',
+      iconColor: 'text-primary',
+      trend: null,
+      warn: false,
     },
   ]
+
+  // ── Drill-down content ────────────────────────────────────────────────────
+  const drillContent: Record<string, React.ReactNode> = {
+    revenue: (
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Revenue by Channel</h4>
+        <div className="space-y-2">
+          {revenueByChannel.map(([ch, rev]) => {
+            const pct = stats.totalRevenueUSD > 0 ? rev / stats.totalRevenueUSD * 100 : 0
+            return (
+              <div key={ch} className="flex items-center gap-3">
+                <div className="w-20 text-sm text-muted-foreground truncate">{ch}</div>
+                <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="text-sm font-semibold tabular w-20 text-right">{formatUSD(rev)}</div>
+                <div className="text-xs text-muted-foreground tabular w-12 text-right">{pct.toFixed(0)}%</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    ),
+    profit: (
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Profit by Brand</h4>
+        <div className="space-y-2">
+          {profitByBrand.map(item => (
+            <div key={item.name} className="flex items-center gap-3">
+              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+              <div className="flex-1 text-sm text-muted-foreground truncate">{item.name}</div>
+              <div className="text-sm font-semibold tabular">{formatUSD(item.value)}</div>
+              <div className="text-xs text-muted-foreground tabular w-10 text-right">{item.pct.toFixed(0)}%</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    inventory: (
+      <div>
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Stock Status</h4>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          {[
+            { label: 'In Stock', val: skus.filter(s => s.quantity > s.lowStockBuffer).length, color: 'text-success' },
+            { label: 'Low Stock', val: stats.lowStockItems, color: 'text-amber-400' },
+            { label: 'Out of Stock', val: stats.outOfStock, color: 'text-destructive' },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl bg-white/[0.03] p-3">
+              <div className={cn('text-2xl font-bold num-display', item.color)}>{item.val}</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">{item.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  }
 
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-7 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
+            <h2 className="font-[family-name:var(--font-display)] text-[1.9rem] font-semibold tracking-tight leading-none">
               Dashboard
             </h2>
-            <div className="flex h-6 items-center gap-1.5 rounded-full bg-primary/10 px-3 text-[10px] font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3 w-3" />
-              Live
+            <div className="flex h-5 items-center gap-1 rounded-full bg-primary/10 px-2.5 text-[9px] font-bold uppercase tracking-[0.15em] text-primary">
+              <Sparkles className="h-2.5 w-2.5" /> Live
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Welcome back to your inventory command center
-          </p>
-        </div>
-        <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
-          <span>Last synced: Just now</span>
+          <p className="text-sm text-muted-foreground mt-1">Rivayat Fashion Lounge — Inventory Command Centre</p>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4 stagger-children">
-        {statCards.map((stat, i) => (
-          <div
-            key={stat.label}
+      {/* KPI Grid */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 stagger-children">
+        {kpiCards.map((card) => (
+          <button
+            key={card.id}
+            onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
             className={cn(
-              "group relative overflow-hidden rounded-2xl p-5 transition-all duration-500",
-              "glass premium-card"
+              'group relative overflow-hidden rounded-2xl p-5 text-left transition-all duration-350 premium-card',
+              'border border-[rgba(255,255,255,0.06)] bg-[#141414]',
+              expandedCard === card.id && 'border-primary/25 bg-[#191919]',
+              drillContent[card.id] ? 'cursor-pointer' : 'cursor-default',
             )}
           >
-            {/* Background gradient */}
-            <div className={cn(
-              "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500",
-              stat.gradient
-            )} />
-            
-            {/* Content */}
-            <div className="relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110",
-                  stat.iconBg
-                )}>
-                  <stat.icon className={cn("h-5 w-5", stat.iconColor)} />
-                </div>
-                {stat.trend === 'up' && (
-                  <div className="flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
-                    <TrendingUp className="h-3 w-3" />
-                    <span>+12%</span>
-                  </div>
-                )}
-                {stat.trend === 'warning' && (
-                  <div className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+            <div className="flex items-start justify-between mb-3.5">
+              <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', card.iconBg)}>
+                <card.icon className={cn('h-4.5 w-4.5', card.iconColor)} />
+              </div>
+              <div className="flex items-center gap-2">
+                {card.warn && (
+                  <div className="flex h-5 items-center gap-1 rounded-full bg-amber-500/10 px-2 text-[10px] font-semibold text-amber-400">
                     <AlertTriangle className="h-3 w-3" />
+                    {stats.lowStockItems}
                   </div>
                 )}
-              </div>
-              <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
-                {stat.label}
-              </div>
-              <div className="text-2xl font-bold tracking-tight mb-0.5">
-                {stat.value}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {stat.subtext}
+                <TrendBadge pct={card.trend ?? null} />
+                {drillContent[card.id] && (
+                  <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/40 transition-transform', expandedCard === card.id && 'rotate-180')} />
+                )}
               </div>
             </div>
-          </div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
+              {card.label}
+            </div>
+            <div className="text-[1.45rem] font-bold num-display leading-none mb-1 truncate">
+              {card.value}
+            </div>
+            <div className="text-xs text-muted-foreground">{card.sub}</div>
+          </button>
         ))}
       </div>
 
-      {/* Charts Row */}
-      <div className="mb-6 grid gap-5 lg:grid-cols-5">
-        {/* Revenue Chart - Takes 3 columns */}
-        <div className="lg:col-span-3 glass rounded-2xl p-5 premium-card">
-          <div className="flex items-center justify-between mb-5">
+      {/* Drill-down panel */}
+      {expandedCard && drillContent[expandedCard] && (
+        <div className="mb-5 rounded-2xl border border-primary/15 bg-[#141414] p-5 animate-slide-up">
+          {drillContent[expandedCard]}
+        </div>
+      )}
+
+      {/* Charts row */}
+      <div className="mb-5 grid gap-4 lg:grid-cols-5">
+        {/* Revenue area chart */}
+        <div className="lg:col-span-3 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-5 premium-card">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold mb-0.5">Revenue Overview</h3>
-              <p className="text-xs text-muted-foreground">Last 6 months performance</p>
+              <h3 className="text-sm font-semibold leading-none">Revenue Overview</h3>
+              <p className="text-[11px] text-muted-foreground mt-1">Last 6 months · USD</p>
             </div>
-            <div className="flex items-center gap-4 text-xs">
-              <div className="flex items-center gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-                <span className="text-muted-foreground">Revenue</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-2.5 w-2.5 rounded-full bg-success" />
-                <span className="text-muted-foreground">Profit</span>
-              </div>
+            <div className="flex items-center gap-4 text-[11px]">
+              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-primary" /><span className="text-muted-foreground">Revenue</span></div>
+              <div className="flex items-center gap-1.5"><div className="h-2 w-2 rounded-full bg-success" /><span className="text-muted-foreground">Profit</span></div>
             </div>
           </div>
-          <div className="h-[240px]">
+          <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyData}>
+              <AreaChart data={monthlyData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#d4af37" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#d4af37" stopOpacity={0} />
+                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#4ade80" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                  <linearGradient id="profGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#4ADE80" stopOpacity={0.30} />
+                    <stop offset="100%" stopColor="#4ADE80" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis 
-                  dataKey="month" 
-                  tick={{ fontSize: 11, fill: '#9a8f82' }}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.05)' }}
-                  tickLine={false}
+                <CartesianGrid strokeDasharray="2 4" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9A8F82' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#9A8F82' }} axisLine={false} tickLine={false} tickFormatter={v => `$${v.toFixed(0)}`} width={48} />
+                <Tooltip
+                  formatter={(v, name) => [formatUSD(Number(v)), name === 'revenue' ? 'Revenue' : 'Profit']}
+                  contentStyle={{ background:'#1A1A1A', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', color:'#FAF8F5', fontSize:'12px' }}
+                  cursor={{ stroke: 'rgba(255,255,255,0.1)' }}
                 />
-                <YAxis 
-                  tick={{ fontSize: 11, fill: '#9a8f82' }}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.05)' }}
-                  tickLine={false}
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                />
-                <Tooltip 
-                  formatter={(value: any) => formatPKR(value)}
-                  contentStyle={{ 
-                    background: 'rgba(18, 16, 14, 0.95)', 
-                    border: '1px solid rgba(212, 175, 55, 0.2)', 
-                    borderRadius: '12px',
-                    color: '#faf8f5',
-                    fontSize: '12px',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.4)'
-                  }}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#d4af37" 
-                  strokeWidth={2}
-                  fill="url(#revenueGradient)" 
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="profit" 
-                  stroke="#4ade80" 
-                  strokeWidth={2}
-                  fill="url(#profitGradient)" 
-                />
+                <Area type="monotone" dataKey="revenue" stroke="var(--chart-1)" strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                <Area type="monotone" dataKey="profit"  stroke="#4ADE80" strokeWidth={2} fill="url(#profGrad)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Profit by Brand - Takes 2 columns */}
-        <div className="lg:col-span-2 glass rounded-2xl p-5 premium-card">
-          <div className="mb-4">
-            <h3 className="text-sm font-semibold mb-0.5">Profit by Brand</h3>
-            <p className="text-xs text-muted-foreground">Top performing brands</p>
+        {/* Profit donut */}
+        <div className="lg:col-span-2 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-5 premium-card">
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold leading-none">Profit by Brand</h3>
+            <p className="text-[11px] text-muted-foreground mt-1">USD · hover for %</p>
           </div>
-          <div className="h-[180px]">
-            {profitByBrand.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={profitByBrand}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="rgba(0,0,0,0.3)"
-                    strokeWidth={1}
-                  >
-                    {profitByBrand.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: any) => formatPKR(value)}
-                    contentStyle={{ 
-                      background: 'rgba(18, 16, 14, 0.95)', 
-                      border: '1px solid rgba(212, 175, 55, 0.2)', 
-                      borderRadius: '12px',
-                      color: '#faf8f5',
-                      fontSize: '12px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                No data yet
+          {profitByBrand.length > 0 ? (
+            <>
+              <div className="h-[160px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={profitByBrand} cx="50%" cy="50%" innerRadius={50} outerRadius={72} paddingAngle={3} dataKey="value" stroke="none">
+                      {profitByBrand.map((e, i) => <Cell key={i} fill={e.color} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v, _name, props) => [`${formatUSD(Number(v))} (${(props as any).payload.pct.toFixed(1)}%)`, (props as any).payload.name]}
+                      contentStyle={{ background:'#1A1A1A', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', color:'#FAF8F5', fontSize:'12px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            )}
-          </div>
-          {profitByBrand.length > 0 && (
-            <div className="mt-3 flex flex-wrap justify-center gap-3">
-              {profitByBrand.map((item) => (
-                <div key={item.name} className="flex items-center gap-1.5 text-[11px]">
-                  <div 
-                    className="h-2 w-2 rounded-full" 
-                    style={{ backgroundColor: item.color }} 
-                  />
-                  <span className="text-muted-foreground">{item.name}</span>
-                </div>
-              ))}
-            </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                {profitByBrand.map(item => (
+                  <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
+                    <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-muted-foreground truncate max-w-[80px]">{item.name}</span>
+                    <span className="text-foreground/60 tabular">{item.pct.toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">No data yet</div>
           )}
         </div>
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        {/* Top Sellers */}
-        <div className="glass rounded-2xl p-5 premium-card">
+      {/* Bottom row */}
+      <div className="mb-5 grid gap-4 lg:grid-cols-2">
+        {/* Top sellers */}
+        <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-5 premium-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold mb-0.5">Top Selling Articles</h3>
-              <p className="text-xs text-muted-foreground">Best performers this period</p>
+              <h3 className="text-sm font-semibold leading-none">Top Selling Articles</h3>
+              <p className="text-[11px] text-muted-foreground mt-1">Best performers all-time</p>
             </div>
             <Crown className="h-4 w-4 text-primary" />
           </div>
           {topSellers.length > 0 ? (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {topSellers.map((item, i) => (
-                <div 
-                  key={i} 
-                  className="group flex items-center justify-between rounded-xl px-3 py-3 transition-all hover:bg-white/[0.03]"
-                >
+                <div key={i} className="group flex items-center justify-between rounded-xl px-3 py-2.5 transition-all hover:bg-white/[0.03]">
                   <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold",
-                      i === 0 ? "bg-primary/20 text-primary" : "bg-white/5 text-muted-foreground"
-                    )}>
+                    <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold',
+                      i === 0 ? 'bg-primary/15 text-primary' : 'bg-white/5 text-muted-foreground')}>
                       {i + 1}
                     </div>
                     <div>
-                      <div className="text-sm font-medium group-hover:text-primary transition-colors">{item.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{item.brand}</div>
+                      <div className="text-sm font-medium leading-none group-hover:text-primary transition-colors">{item.name}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{item.brand}</div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-semibold">{item.qty} sold</div>
-                    <div className="text-[11px] text-muted-foreground">{formatPKR(item.revenue)}</div>
+                    <div className="text-sm font-semibold num-display">{item.qty} sold</div>
+                    <div className="text-[11px] text-muted-foreground">{formatUSD(item.revenue)}</div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              No sales recorded yet
-            </div>
+            <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">No sales recorded yet</div>
           )}
         </div>
 
-        {/* Top Clients */}
-        <div className="glass rounded-2xl p-5 premium-card">
+        {/* VIP clients */}
+        <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-5 premium-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold mb-0.5">VIP Clients</h3>
-              <p className="text-xs text-muted-foreground">Top spenders this period</p>
+              <h3 className="text-sm font-semibold leading-none">VIP Clients</h3>
+              <p className="text-[11px] text-muted-foreground mt-1">Top spenders all-time</p>
             </div>
-            <Sparkles className="h-4 w-4 text-primary" />
+            <Users className="h-4 w-4 text-primary" />
           </div>
           {topClients.length > 0 ? (
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {topClients.map((client, i) => (
-                <div 
-                  key={i} 
-                  className="group flex items-center justify-between rounded-xl px-3 py-3 transition-all hover:bg-white/[0.03]"
-                >
+                <div key={i} className="group flex items-center justify-between rounded-xl px-3 py-2.5 transition-all hover:bg-white/[0.03]">
                   <div className="flex items-center gap-3">
                     <div className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold uppercase",
-                      i === 0 
-                        ? "bg-gradient-to-br from-primary/30 to-primary/10 text-primary border border-primary/20" 
-                        : "bg-white/5 text-muted-foreground"
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold uppercase',
+                      i === 0 ? 'bg-primary/15 text-primary border border-primary/20' : 'bg-white/5 text-muted-foreground',
                     )}>
-                      {client.name.split(' ').map(n => n[0]).join('')}
+                      {client.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div>
-                      <div className="text-sm font-medium group-hover:text-primary transition-colors">{client.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{client.orders} orders</div>
+                      <div className="text-sm font-medium leading-none group-hover:text-primary transition-colors">{client.name}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{client.orders} orders</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-semibold">{formatPKR(client.spent)}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold num-display">{formatUSD(client.spent)}</span>
                     <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              No client data yet
-            </div>
+            <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">No client data yet</div>
           )}
         </div>
       </div>
 
-      {/* Low Stock Alert */}
+      {/* Recent Sales */}
+      <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-5 mb-5 premium-card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold leading-none">Recent Sales</h3>
+            <p className="text-[11px] text-muted-foreground mt-1">Last 10 transactions</p>
+          </div>
+          <Sparkles className="h-4 w-4 text-primary" />
+        </div>
+        {sales.length === 0 ? (
+          <div className="flex h-20 items-center justify-center text-sm text-muted-foreground">No sales yet</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/5">
+                  {['Date','Article','Size','Qty','USD','Channel','Client'].map(h => (
+                    <th key={h} className="whitespace-nowrap pb-2 pr-4 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sales.slice(0, 10).map(s => (
+                  <tr key={s.id} className="border-b border-white/[0.03] last:border-0 transition-colors hover:bg-white/[0.02]">
+                    <td className="py-2.5 pr-4 text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(s.createdAt).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      <div className="text-[11px] text-primary font-medium">{s.brandName}</div>
+                      <div className="text-sm font-medium leading-tight">{s.articleName}</div>
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      <span className="inline-flex items-center rounded-md bg-white/[0.05] px-2 py-0.5 text-xs font-medium">{s.size}</span>
+                    </td>
+                    <td className="py-2.5 pr-4 tabular font-medium">{s.quantity}</td>
+                    <td className="py-2.5 pr-4 tabular font-semibold text-primary">{formatUSD(s.sellingPrice * s.quantity)}</td>
+                    <td className="py-2.5 pr-4 text-xs text-muted-foreground">{s.channel || '—'}</td>
+                    <td className="py-2.5 text-xs text-muted-foreground">{s.clientName || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Low stock alert */}
       {stats.lowStockItems > 0 && (
-        <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15">
               <AlertTriangle className="h-5 w-5 text-amber-400" />
             </div>
             <div>
               <h4 className="text-sm font-semibold text-amber-400">Low Stock Alert</h4>
               <p className="text-xs text-amber-400/70">
-                {stats.lowStockItems} items are running low on stock. {stats.outOfStockItems > 0 && `${stats.outOfStockItems} items are out of stock.`}
+                {stats.lowStockItems} item{stats.lowStockItems !== 1 ? 's' : ''} running low.
+                {stats.outOfStock > 0 && ` ${stats.outOfStock} out of stock.`}
               </p>
             </div>
           </div>

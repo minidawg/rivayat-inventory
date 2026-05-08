@@ -50,7 +50,7 @@ export async function getInventory(): Promise<ArticleInventory[]> {
       .from('articles')
       .select(`
         id, name,
-        collections( name, brands(id, name) ),
+        collections( id, name, brands(id, name) ),
         skus( id, size, quantity, low_stock_buffer, avg_cost_pkr, avg_exchange_rate )
       `)
       .order('name')
@@ -62,6 +62,7 @@ export async function getInventory(): Promise<ArticleInventory[]> {
       articleName: a.name,
       brandId: a.collections?.brands?.id ?? '',
       brandName: a.collections?.brands?.name ?? '',
+      collectionId: a.collections?.id ?? '',
       collectionName: a.collections?.name ?? '',
       totalQuantity: (a.skus ?? []).reduce((s: number, x: any) => s + (x.quantity ?? 0), 0),
       skus: (a.skus ?? []).map((s: any) => ({
@@ -81,12 +82,13 @@ export async function getInventory(): Promise<ArticleInventory[]> {
 export async function getSkuStats(): Promise<SkuForStats[]> {
   try {
     const client = await getSupabaseServerClient()
-    const { data } = await client.from('skus').select('id, quantity, low_stock_buffer')
+    const { data } = await client.from('skus').select('id, quantity, low_stock_buffer, avg_cost_pkr')
     if (!data) return []
     return (data as any[]).map((s) => ({
       id: s.id,
       quantity: s.quantity,
       lowStockBuffer: s.low_stock_buffer,
+      avgCostPKR: s.avg_cost_pkr ?? 0,
     }))
   } catch {
     return []
@@ -113,8 +115,8 @@ export async function getSales(): Promise<SaleRow[]> {
       id: s.id,
       createdAt: s.created_at,
       quantity: s.quantity,
-      sellingPrice: s.selling_price,
-      costPKRAtSale: s.cost_pkr_at_sale,
+      sellingPrice: s.selling_price,         // USD
+      costPKRAtSale: s.cost_pkr_at_sale,     // PKR cost basis
       exchangeRateAtSale: s.exchange_rate_at_sale,
       channel: s.channel,
       clientName: s.client_name,
