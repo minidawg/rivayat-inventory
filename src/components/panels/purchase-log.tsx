@@ -4,8 +4,9 @@ import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { formatPKR, formatUSD, formatDate, totalCostPKR } from '@/lib/data'
 import type { PurchaseRow } from '@/lib/types'
-import { Download, Package, Calendar, DollarSign } from 'lucide-react'
+import { Download, Package, Calendar, TrendingDown, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
 
 interface PurchaseLogProps {
   purchases: PurchaseRow[]
@@ -16,80 +17,71 @@ type DateFilter = 'all' | '7d' | '30d' | '90d' | 'ytd'
 
 export function PurchaseLog({ purchases, exchangeRate }: PurchaseLogProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>('all')
+  const [search,     setSearch]     = useState('')
 
-  const filteredPurchases = useMemo(() => {
-    if (dateFilter === 'all') return purchases
+  const filtered = useMemo(() => {
+    let list = purchases
 
-    const now = new Date()
-    let cutoff: Date
-
-    switch (dateFilter) {
-      case '7d':
-        cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-        break
-      case '30d':
-        cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        break
-      case '90d':
-        cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-        break
-      case 'ytd':
-        cutoff = new Date(now.getFullYear(), 0, 1)
-        break
-      default:
-        return purchases
+    if (dateFilter !== 'all') {
+      const now = new Date()
+      let cutoff: Date
+      switch (dateFilter) {
+        case '7d':  cutoff = new Date(now.getTime() - 7  * 86400000); break
+        case '30d': cutoff = new Date(now.getTime() - 30 * 86400000); break
+        case '90d': cutoff = new Date(now.getTime() - 90 * 86400000); break
+        case 'ytd': cutoff = new Date(now.getFullYear(), 0, 1); break
+        default:    cutoff = new Date(0)
+      }
+      list = list.filter(p => new Date(p.createdAt) >= cutoff)
     }
 
-    return purchases.filter(p => new Date(p.createdAt) >= cutoff)
-  }, [purchases, dateFilter])
+    if (search.trim()) {
+      const t = search.toLowerCase()
+      list = list.filter(p =>
+        p.articleName.toLowerCase().includes(t) ||
+        p.brandName.toLowerCase().includes(t) ||
+        p.collectionName.toLowerCase().includes(t)
+      )
+    }
+
+    return list
+  }, [purchases, dateFilter, search])
 
   const stats = useMemo(() => {
-    const totalCost = filteredPurchases.reduce((sum, p) => {
-      return sum + totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR) * p.quantity
-    }, 0)
-    const totalQuantity = filteredPurchases.reduce((sum, p) => sum + p.quantity, 0)
-    return { totalCost, totalQuantity, count: filteredPurchases.length }
-  }, [filteredPurchases])
+    const totalCostPKRVal = filtered.reduce((s, p) =>
+      s + totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR) * p.quantity, 0)
+    const totalQty   = filtered.reduce((s, p) => s + p.quantity, 0)
+    const totalLines = filtered.length
+    const avgUnitPKR = totalQty > 0 ? totalCostPKRVal / totalQty : 0
+    // weighted average USD using each purchase's rate
+    const totalCostUSD = filtered.reduce((s, p) =>
+      s + totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR) * p.quantity / p.exchangeRate, 0)
+    return { totalCostPKRVal, totalCostUSD, totalQty, totalLines, avgUnitPKR }
+  }, [filtered])
 
   const exportCSV = () => {
-    const rows: string[][] = [
-      ['Date', 'Brand', 'Article', 'Collection', 'Size', 'Qty', 'Unit Cost', 'Commission', 'Shipping', 'Total Cost', 'Rate', 'Source', 'Notes']
-    ]
-
-    for (const p of filteredPurchases) {
-      const total = totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR)
+    const rows = [['Date','Brand','Collection','Article','Size','Qty','Unit Cost PKR','Commission PKR','Shipping PKR','All-in/Unit PKR','Line Total PKR','Line Total USD','Rate','Source','Notes']]
+    for (const p of filtered) {
+      const unitAllIn = totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR)
+      const lineTotal = unitAllIn * p.quantity
       rows.push([
-        formatDate(p.createdAt),
-        p.brandName,
-        p.articleName,
-        p.collectionName,
-        p.size,
-        String(p.quantity),
-        String(p.costPKR),
-        String(p.commissionPKR),
-        String(p.shippingPKR),
-        String(total),
-        String(p.exchangeRate),
-        p.source || '',
-        p.notes || '',
+        formatDate(p.createdAt), p.brandName, p.collectionName, p.articleName,
+        p.size, String(p.quantity),
+        String(p.costPKR), String(p.commissionPKR), String(p.shippingPKR),
+        String(Math.round(unitAllIn)), String(Math.round(lineTotal)),
+        (lineTotal / p.exchangeRate).toFixed(2),
+        String(p.exchangeRate), p.source || '', p.notes || '',
       ])
     }
-
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = `rivayat-purchases-${new Date().toISOString().split('T')[0]}.csv`
+    a.href = URL.createObjectURL(new Blob([rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')], { type: 'text/csv' }))
+    a.download = `purchases-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
-    URL.revokeObjectURL(url)
   }
 
   const dateFilters: { id: DateFilter; label: string }[] = [
-    { id: 'all', label: 'All Time' },
-    { id: '7d', label: '7 Days' },
-    { id: '30d', label: '30 Days' },
-    { id: '90d', label: '90 Days' },
+    { id: 'all', label: 'All Time' }, { id: '7d', label: '7 Days' },
+    { id: '30d', label: '30 Days' }, { id: '90d', label: '90 Days' },
     { id: 'ytd', label: 'YTD' },
   ]
 
@@ -98,154 +90,202 @@ export function PurchaseLog({ purchases, exchangeRate }: PurchaseLogProps) {
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight mb-1">
+          <h2 className="font-[family-name:var(--font-display)] text-[1.9rem] font-semibold tracking-tight leading-none mb-1">
             Purchase Log
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Track all inventory purchases and costs
-          </p>
+          <p className="text-sm text-muted-foreground">All inventory purchases · costs in PKR</p>
         </div>
-        <Button
-          onClick={exportCSV}
-          className="gap-2 bg-gradient-to-r from-primary/20 to-primary/10 border border-primary/20 text-primary hover:from-primary/30 hover:to-primary/20"
-        >
+        <Button onClick={exportCSV} size="sm"
+          className="gap-2 border border-primary/20 bg-primary/8 text-primary hover:bg-primary/15 hover:border-primary/30">
           <Download className="h-4 w-4" /> Export CSV
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
-        <div className="glass rounded-2xl p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/20 text-primary">
-              <DollarSign className="h-5 w-5" />
+      {/* Stats */}
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[
+          {
+            icon: TrendingDown, bg: 'bg-destructive/10', fg: 'text-destructive',
+            label: 'Total Spent',
+            primary: formatPKR(stats.totalCostPKRVal),
+            secondary: formatUSD(stats.totalCostUSD),
+          },
+          {
+            icon: Package, bg: 'bg-blue-500/10', fg: 'text-blue-400',
+            label: 'Items Purchased',
+            primary: stats.totalQty.toString(),
+            secondary: 'pieces',
+          },
+          {
+            icon: Calendar, bg: 'bg-success/10', fg: 'text-success',
+            label: 'Purchase Orders',
+            primary: stats.totalLines.toString(),
+            secondary: 'records',
+          },
+          {
+            icon: Package, bg: 'bg-primary/10', fg: 'text-primary',
+            label: 'Avg Unit Cost',
+            primary: stats.avgUnitPKR > 0 ? formatPKR(stats.avgUnitPKR) : '—',
+            secondary: stats.avgUnitPKR > 0 ? formatUSD(stats.avgUnitPKR / exchangeRate) : '',
+          },
+        ].map(card => (
+          <div key={card.label} className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', card.bg)}>
+                <card.icon className={cn('h-4 w-4', card.fg)} />
+              </div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{card.label}</div>
             </div>
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Total Spent</div>
-              <div className="text-xl font-bold">{formatUSD(stats.totalCost / exchangeRate)}</div>
-            </div>
+            <div className="text-xl font-bold num-display">{card.primary}</div>
+            {card.secondary && <div className="text-xs text-muted-foreground mt-0.5">{card.secondary}</div>}
           </div>
-        </div>
-        <div className="glass rounded-2xl p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400">
-              <Package className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Items Purchased</div>
-              <div className="text-xl font-bold">{stats.totalQuantity}</div>
-            </div>
-          </div>
-        </div>
-        <div className="glass rounded-2xl p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/20 text-success">
-              <Calendar className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Orders</div>
-              <div className="text-xl font-bold">{stats.count}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Date Filters */}
-      <div className="mb-5 flex flex-wrap gap-2">
-        {dateFilters.map(f => (
-          <button
-            key={f.id}
-            onClick={() => setDateFilter(f.id)}
-            className={cn(
-              "rounded-xl border px-4 py-2 text-sm font-medium transition-all",
-              dateFilter === f.id
-                ? "border-primary/30 bg-primary/10 text-primary"
-                : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
-            )}
-          >
-            {f.label}
-          </button>
         ))}
       </div>
 
+      {/* Filters */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search article, brand…"
+            className="pl-9 h-9 bg-[#111] border-white/10 focus:border-primary/40 text-sm w-48" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {dateFilters.map(f => (
+            <button key={f.id} onClick={() => setDateFilter(f.id)}
+              className={cn('rounded-xl border px-3.5 py-1.5 text-sm font-medium transition-all',
+                dateFilter === f.id
+                  ? 'border-primary/30 bg-primary/10 text-primary'
+                  : 'border-white/8 bg-white/[0.02] text-muted-foreground hover:bg-white/[0.05] hover:text-foreground')}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Table */}
-      {filteredPurchases.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="py-20 text-center">
-          <Package className="mx-auto h-12 w-12 text-muted-foreground/30 mb-3" />
-          <p className="text-muted-foreground">No purchases recorded yet</p>
+          <Package className="mx-auto h-12 w-12 text-muted-foreground/20 mb-3" />
+          <p className="text-muted-foreground">No purchases in this period</p>
         </div>
       ) : (
-        <div className="glass rounded-2xl overflow-hidden">
+        <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-b border-white/5 bg-white/[0.02]">
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Item</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Collection</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Size</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Qty</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Unit Cost</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Fees</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</th>
-                  <th className="whitespace-nowrap px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notes</th>
+                <tr className="border-b border-white/5 bg-white/[0.015]">
+                  {['Date','Item','Size','Qty','Unit Cost','Fees','Line Total','Source','Notes'].map(h => (
+                    <th key={h} className="whitespace-nowrap px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {filteredPurchases.map(p => {
-                  const total = totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR)
+                {filtered.map((p, idx) => {
+                  const unitAllIn = totalCostPKR(p.costPKR, p.commissionPKR, p.shippingPKR)
+                  const lineTotal = unitAllIn * p.quantity
+                  const fees      = p.commissionPKR + p.shippingPKR
+
                   return (
-                    <tr key={p.id} className="border-b border-white/5 transition-colors hover:bg-white/[0.02]">
-                      <td className="px-4 py-4 text-muted-foreground">{formatDate(p.createdAt)}</td>
-                      <td className="px-4 py-4">
-                        <div className="text-xs text-primary font-medium">{p.brandName}</div>
-                        <div className="font-medium">{p.articleName}</div>
+                    <tr key={p.id}
+                      className={cn(
+                        'border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]',
+                        idx % 2 === 1 && 'bg-white/[0.012]',
+                      )}>
+                      {/* Date */}
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {formatDate(p.createdAt)}
                       </td>
-                      <td className="px-4 py-4 text-muted-foreground">{p.collectionName}</td>
-                      <td className="px-4 py-4">
-                        <span className="inline-flex items-center rounded-lg bg-white/5 px-2.5 py-1 text-xs font-medium">
-                          {p.size}
-                        </span>
+
+                      {/* Item */}
+                      <td className="px-4 py-3.5 max-w-[160px]">
+                        <div className="text-[11px] font-semibold text-primary truncate">{p.brandName}</div>
+                        <div className="font-medium truncate">{p.articleName}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">{p.collectionName}</div>
                       </td>
-                      <td className="px-4 py-4 font-medium">{p.quantity}</td>
-                      <td className="px-4 py-4">
-                        <div className="font-medium">{formatUSD(p.costPKR / p.exchangeRate)}</div>
-                        <div className="text-xs text-muted-foreground">{formatPKR(p.costPKR)}</div>
+
+                      {/* Size */}
+                      <td className="px-4 py-3.5">
+                        <span className="inline-flex items-center rounded-md bg-white/[0.05] px-2 py-0.5 text-xs font-medium">{p.size}</span>
                       </td>
-                      <td className="px-4 py-4">
-                        {p.commissionPKR || p.shippingPKR ? (
+
+                      {/* Qty */}
+                      <td className="px-4 py-3.5 tabular font-semibold">{p.quantity}</td>
+
+                      {/* Unit Cost */}
+                      <td className="px-4 py-3.5">
+                        <div className="font-medium tabular">{formatPKR(p.costPKR)}</div>
+                        <div className="text-[11px] text-muted-foreground tabular">{formatUSD(p.costPKR / p.exchangeRate)}</div>
+                      </td>
+
+                      {/* Fees */}
+                      <td className="px-4 py-3.5">
+                        {fees > 0 ? (
                           <>
-                            <div>{formatUSD((p.commissionPKR + p.shippingPKR) / p.exchangeRate)}</div>
-                            <div className="text-xs text-muted-foreground">{formatPKR(p.commissionPKR + p.shippingPKR)}</div>
+                            <div className="tabular">{formatPKR(fees)}</div>
+                            <div className="text-[11px] text-muted-foreground tabular">{formatUSD(fees / p.exchangeRate)}</div>
                           </>
                         ) : (
-                          <span className="text-muted-foreground">--</span>
+                          <span className="text-muted-foreground/50">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="font-semibold text-primary">{formatUSD(total / p.exchangeRate)}</div>
-                        <div className="text-xs text-muted-foreground">{formatPKR(total)}</div>
+
+                      {/* Line total (unit all-in × qty) */}
+                      <td className="px-4 py-3.5">
+                        <div className="font-semibold text-foreground tabular">{formatPKR(lineTotal)}</div>
+                        <div className="text-[11px] text-muted-foreground tabular">{formatUSD(lineTotal / p.exchangeRate)}</div>
+                        {p.quantity > 1 && (
+                          <div className="text-[10px] text-muted-foreground/60 mt-0.5">
+                            {formatPKR(unitAllIn)}/pc
+                          </div>
+                        )}
                       </td>
-                      <td className="px-4 py-4">
-                        {p.source && (
+
+                      {/* Source badge */}
+                      <td className="px-4 py-3.5">
+                        {p.source ? (
                           <span className={cn(
-                            "inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
-                            p.source === 'prebook' 
-                              ? "bg-success/20 text-success border border-success/30" 
-                              : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                            'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                            p.source === 'prebook'
+                              ? 'bg-success/12 text-success border border-success/20'
+                              : 'bg-amber-500/12 text-amber-400 border border-amber-500/20',
                           )}>
                             {p.source}
                           </span>
+                        ) : (
+                          <span className="text-muted-foreground/50">—</span>
                         )}
                       </td>
-                      <td className="max-w-[150px] truncate px-4 py-4 text-muted-foreground">
-                        {p.notes || '--'}
+
+                      {/* Notes */}
+                      <td className="px-4 py-3.5 max-w-[160px]">
+                        {p.notes ? (
+                          <span className="text-xs text-muted-foreground line-clamp-2" title={p.notes}>{p.notes}</span>
+                        ) : (
+                          <span className="text-muted-foreground/50">—</span>
+                        )}
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
+
+              {/* Footer totals */}
+              {filtered.length > 1 && (
+                <tfoot>
+                  <tr className="border-t border-white/8 bg-white/[0.02]">
+                    <td colSpan={3} className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {filtered.length} records
+                    </td>
+                    <td className="px-4 py-3 tabular font-bold">{stats.totalQty}</td>
+                    <td colSpan={2} />
+                    <td className="px-4 py-3">
+                      <div className="font-bold tabular">{formatPKR(stats.totalCostPKRVal)}</div>
+                      <div className="text-xs text-muted-foreground tabular">{formatUSD(stats.totalCostUSD)}</div>
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
