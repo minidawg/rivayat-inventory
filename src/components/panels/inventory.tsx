@@ -5,11 +5,23 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { formatPKR, formatUSD, suggestedSellPrice } from '@/lib/data'
-import { updateSku, updateArticle, deleteArticle } from '@/lib/actions'
+import { updateSku, updateArticle, deleteArticle, updateSkuPaidStatus } from '@/lib/actions'
 import { SIZES } from '@/lib/types'
 import type { ArticleInventory, BrandWithCollections } from '@/lib/types'
-import { Download, Edit, ChevronDown, ChevronUp, Package, Search, Filter, Trash2, X, Check, Loader2 } from 'lucide-react'
+import {
+  Download, Edit, ChevronDown, ChevronUp, Package, Search, Filter,
+  Trash2, X, Check, Loader2, AlertTriangle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface InventoryProps {
@@ -31,7 +43,6 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
   const [brandFilter, setBrandFilter]   = useState('all')
   const [sizeFilter, setSizeFilter]     = useState('all')
   const [showOutOfStock, setShowOutOfStock] = useState(true)
-  const [editingId, setEditingId]       = useState<string | null>(null)
   const [deletingId, setDeletingId]     = useState<string | null>(null)
 
   const { inStock, outOfStock } = useMemo(() => {
@@ -42,7 +53,7 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
     }
     if (brandFilter !== 'all') f = f.filter(i => i.brandId === brandFilter)
     if (sizeFilter !== 'all') f = f.filter(i => i.skus.some(s => s.size === sizeFilter && s.quantity > 0))
-    const inStock  = f.filter(i => i.totalQuantity > 0)
+    const inStock    = f.filter(i => i.totalQuantity > 0)
     const outOfStock = f.filter(i => i.totalQuantity === 0)
     if (statusFilter === 'low') return { inStock: inStock.filter(i => i.skus.some(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer)), outOfStock: [] }
     return { inStock, outOfStock }
@@ -123,12 +134,9 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
               item={item}
               brands={brands}
               exchangeRate={exchangeRate}
-              isEditing={editingId === item.articleId}
               isDeleting={deletingId === item.articleId}
-              onEdit={() => setEditingId(editingId === item.articleId ? null : item.articleId)}
               onDeleteStart={() => setDeletingId(item.articleId)}
               onDeleteCancel={() => setDeletingId(null)}
-              onClose={() => setEditingId(null)}
               onSuccess={onSuccess}
             />
           ))}
@@ -162,37 +170,47 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
 // ─── Inventory Card ───────────────────────────────────────────────────────────
 
 function InventoryCard({
-  item, brands, exchangeRate, isEditing, isDeleting,
-  onEdit, onDeleteStart, onDeleteCancel, onClose, onSuccess,
+  item, brands, exchangeRate, isDeleting,
+  onDeleteStart, onDeleteCancel, onSuccess,
 }: {
   item: ArticleInventory
   brands: BrandWithCollections[]
   exchangeRate: number
-  isEditing: boolean
   isDeleting: boolean
-  onEdit: () => void
   onDeleteStart: () => void
   onDeleteCancel: () => void
-  onClose: () => void
   onSuccess?: () => void
 }) {
+  const [editOpen, setEditOpen] = useState(false)
+
   const avgCost = item.skus.reduce((s, sk) => s + sk.avgCostPKR * sk.quantity, 0) /
     Math.max(item.totalQuantity, 1)
   const suggestUSD = suggestedSellPrice(avgCost, 0, 0) / exchangeRate
   const marginPct  = avgCost > 0 ? ((suggestUSD - avgCost / exchangeRate) / suggestUSD) * 100 : 0
 
-  // overall stock status
-  const hasLow = item.skus.some(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer)
-  const status = hasLow ? 'low' : 'ok'
+  const hasLow    = item.skus.some(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer)
+  const hasUnpaid = item.skus.some(s => !s.paidToWajid)
 
   return (
     <div className={cn(
       'group relative rounded-2xl border bg-[#141414] p-5 premium-card transition-all duration-350',
-      isEditing ? 'border-primary/25 bg-[#191919]' : 'border-[rgba(255,255,255,0.06)]',
+      'border-[rgba(255,255,255,0.06)]',
     )}>
+      {/* Unpaid badge */}
+      {hasUnpaid && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="absolute top-3 right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/90 shadow-sm cursor-help">
+              <AlertTriangle className="h-3.5 w-3.5 text-white" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>Status: Unpaid</TooltipContent>
+        </Tooltip>
+      )}
+
       {/* Top row */}
       <div className="mb-4 flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 pr-8">
           <div className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary mb-1.5">
             {item.brandName}
           </div>
@@ -202,17 +220,18 @@ function InventoryCard({
           <div className="text-[11px] text-muted-foreground mt-0.5">{item.collectionName}</div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <button onClick={onEdit}
-            className={cn('flex h-8 w-8 items-center justify-center rounded-xl border transition-all',
-              isEditing ? 'bg-primary/15 border-primary/30 text-primary' : 'bg-white/[0.03] border-white/10 text-muted-foreground hover:border-primary/25 hover:bg-primary/8 hover:text-primary')}>
+          <button
+            onClick={() => setEditOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-muted-foreground transition-all hover:border-primary/25 hover:bg-primary/8 hover:text-primary"
+          >
             <Edit className="h-3.5 w-3.5" />
           </button>
-          {!isDeleting ? (
+          {!isDeleting && (
             <button onClick={onDeleteStart}
               className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-muted-foreground transition-all hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -222,7 +241,7 @@ function InventoryCard({
       )}
 
       {/* Sizes */}
-      {!isEditing && !isDeleting && (
+      {!isDeleting && (
         <>
           <div className="mb-3 flex flex-wrap gap-1.5">
             {item.skus.filter(s => s.quantity > 0).map(s => (
@@ -242,7 +261,7 @@ function InventoryCard({
           <div className="flex items-end justify-between border-t border-white/5 pt-3 mt-3">
             <div className="flex items-center gap-2">
               <StockBadge qty={item.totalQuantity} buffer={item.skus[0]?.lowStockBuffer ?? 2} />
-              {status === 'low' && <span className="text-[10px] text-amber-400/70">Some sizes low</span>}
+              {hasLow && <span className="text-[10px] text-amber-400/70">Some sizes low</span>}
             </div>
             <div className="text-right">
               {avgCost > 0 && (
@@ -257,10 +276,22 @@ function InventoryCard({
         </>
       )}
 
-      {/* Edit panel */}
-      {isEditing && !isDeleting && (
-        <EditPanel item={item} brands={brands} exchangeRate={exchangeRate} onClose={onClose} onSuccess={onSuccess} />
-      )}
+      {/* Edit Modal */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-2xl bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Edit: {item.articleName}</DialogTitle>
+            <DialogDescription>{item.brandName} · {item.collectionName}</DialogDescription>
+          </DialogHeader>
+          <EditModal
+            item={item}
+            brands={brands}
+            exchangeRate={exchangeRate}
+            onClose={() => setEditOpen(false)}
+            onSuccess={onSuccess}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -302,9 +333,9 @@ function DeleteConfirm({ item, onCancel, onSuccess }: {
   )
 }
 
-// ─── Edit Panel ───────────────────────────────────────────────────────────────
+// ─── Edit Modal (inside Dialog) ───────────────────────────────────────────────
 
-function EditPanel({ item, brands, exchangeRate, onClose, onSuccess }: {
+function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
   item: ArticleInventory
   brands: BrandWithCollections[]
   exchangeRate: number
@@ -315,33 +346,44 @@ function EditPanel({ item, brands, exchangeRate, onClose, onSuccess }: {
   const [articleName,   setArticleName]   = useState(item.articleName)
   const [collectionId,  setCollectionId]  = useState(item.collectionId)
   const [selectedBrand, setSelectedBrand] = useState(item.brandId)
-  const [skuData, setSkuData] = useState<Record<string, { qty: number; buffer: number; cost: number }>>(
-    Object.fromEntries(item.skus.map(s => [s.skuId, { qty: s.quantity, buffer: s.lowStockBuffer, cost: s.avgCostPKR }]))
+  const [skuData, setSkuData] = useState<Record<string, { qty: number; buffer: number; cost: number; paidToWajid: boolean }>>(
+    Object.fromEntries(item.skus.map(s => [s.skuId, {
+      qty: s.quantity,
+      buffer: s.lowStockBuffer,
+      cost: s.avgCostPKR,
+      paidToWajid: s.paidToWajid,
+    }]))
   )
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
   const collections = brands.find(b => b.id === selectedBrand)?.collections ?? []
 
+  const inputClass = 'flex h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20'
+  const selectClass = 'flex h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none'
+
   async function handleSave() {
     if (!articleName.trim()) { setError('Article name required'); return }
     setSaving(true); setError('')
     try {
-      // Update article name / collection
       const updates: { name?: string; collection_id?: string } = {}
       if (articleName.trim() !== item.articleName) updates.name = articleName.trim()
       if (collectionId !== item.collectionId) updates.collection_id = collectionId
       if (Object.keys(updates).length > 0) await updateArticle(item.articleId, updates)
 
-      // Update each SKU
       for (const [skuId, vals] of Object.entries(skuData)) {
         const orig = item.skus.find(s => s.skuId === skuId)
         if (!orig) continue
+
         const patch: { quantity?: number; lowStockBuffer?: number; avgCostPKR?: number } = {}
         if (vals.qty !== orig.quantity) patch.quantity = vals.qty
         if (vals.buffer !== orig.lowStockBuffer) patch.lowStockBuffer = vals.buffer
         if (vals.cost !== orig.avgCostPKR) patch.avgCostPKR = vals.cost
         if (Object.keys(patch).length > 0) await updateSku(skuId, patch)
+
+        if (vals.paidToWajid !== orig.paidToWajid) {
+          await updateSkuPaidStatus(skuId, vals.paidToWajid)
+        }
       }
 
       router.refresh(); onSuccess?.(); onClose()
@@ -353,62 +395,87 @@ function EditPanel({ item, brands, exchangeRate, onClose, onSuccess }: {
   }
 
   return (
-    <div className="space-y-4">
-      {error && <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">{error}</div>}
+    <div className="space-y-5">
+      {error && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      )}
 
       {/* Article name */}
       <div className="space-y-1.5">
         <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Article Name</Label>
         <Input value={articleName} onChange={e => setArticleName(e.target.value)}
-          className="h-9 bg-[#111] border-white/10 focus:border-primary/40 text-sm" />
+          className="h-10 bg-input border-border focus:border-primary/50" />
       </div>
 
       {/* Brand + Collection */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Brand</Label>
           <select value={selectedBrand}
             onChange={e => { setSelectedBrand(e.target.value); setCollectionId('') }}
-            className="flex h-9 w-full rounded-lg border border-white/10 bg-[#111] px-3 text-sm text-foreground focus:border-primary/40 focus:outline-none">
+            className={selectClass}>
             {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
         <div className="space-y-1.5">
           <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Collection</Label>
-          <select value={collectionId} onChange={e => setCollectionId(e.target.value)}
-            className="flex h-9 w-full rounded-lg border border-white/10 bg-[#111] px-3 text-sm text-foreground focus:border-primary/40 focus:outline-none">
+          <select value={collectionId} onChange={e => setCollectionId(e.target.value)} className={selectClass}>
             <option value="">— select —</option>
             {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
       </div>
 
-      {/* Per-SKU quantities + cost */}
+      {/* Per-SKU table */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Sizes / Quantities / Cost</div>
-        <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          Variants — Qty / Buffer / Cost / Paid to Wajid
+        </div>
+        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
           {item.skus.map(s => {
-            const d = skuData[s.skuId] ?? { qty: s.quantity, buffer: s.lowStockBuffer, cost: s.avgCostPKR }
+            const d = skuData[s.skuId] ?? { qty: s.quantity, buffer: s.lowStockBuffer, cost: s.avgCostPKR, paidToWajid: s.paidToWajid }
             return (
-              <div key={s.skuId} className="grid grid-cols-[40px_1fr_1fr_1fr] items-center gap-2 rounded-lg bg-white/[0.02] px-3 py-2 border border-white/5">
-                <span className="text-xs font-semibold text-muted-foreground">{s.size}</span>
+              <div key={s.skuId}
+                className="grid grid-cols-[48px_1fr_1fr_1fr_auto] items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+                <span className="text-sm font-bold text-muted-foreground">{s.size}</span>
+
                 <div>
-                  <div className="text-[9px] text-muted-foreground mb-0.5">Qty</div>
+                  <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Qty</div>
                   <Input type="number" min="0" value={d.qty}
                     onChange={e => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, qty: Number(e.target.value) } }))}
-                    className="h-8 bg-[#0D0D0D] border-white/8 focus:border-primary/40 text-xs" />
+                    className="h-8 bg-input border-border focus:border-primary/50 text-xs" />
                 </div>
+
                 <div>
-                  <div className="text-[9px] text-muted-foreground mb-0.5">Buffer</div>
+                  <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Buffer</div>
                   <Input type="number" min="0" value={d.buffer}
                     onChange={e => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, buffer: Number(e.target.value) } }))}
-                    className="h-8 bg-[#0D0D0D] border-white/8 focus:border-primary/40 text-xs" />
+                    className="h-8 bg-input border-border focus:border-primary/50 text-xs" />
                 </div>
+
                 <div>
-                  <div className="text-[9px] text-muted-foreground mb-0.5">Cost PKR</div>
+                  <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Cost PKR</div>
                   <Input type="number" min="0" value={d.cost}
                     onChange={e => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, cost: Number(e.target.value) } }))}
-                    className="h-8 bg-[#0D0D0D] border-white/8 focus:border-primary/40 text-xs" />
+                    className="h-8 bg-input border-border focus:border-primary/50 text-xs" />
+                </div>
+
+                <div className="text-center">
+                  <div className="text-[9px] text-muted-foreground mb-1.5 uppercase tracking-wider whitespace-nowrap">Paid</div>
+                  <button
+                    onClick={() => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, paidToWajid: !d.paidToWajid } }))}
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-lg border transition-all',
+                      d.paidToWajid
+                        ? 'bg-success/15 border-success/30 text-success'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-500',
+                    )}
+                    title={d.paidToWajid ? 'Paid — click to mark unpaid' : 'Unpaid — click to mark paid'}
+                  >
+                    {d.paidToWajid ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                  </button>
                 </div>
               </div>
             )
@@ -416,15 +483,15 @@ function EditPanel({ item, brands, exchangeRate, onClose, onSuccess }: {
         </div>
       </div>
 
-      <div className="flex gap-2 pt-1">
-        <Button variant="outline" size="sm" onClick={onClose} className="flex-1 border-white/10 bg-white/[0.02] hover:bg-white/[0.05]">
+      <DialogFooter className="pt-2">
+        <Button variant="outline" onClick={onClose} className="border-border bg-transparent hover:bg-muted/40">
           <X className="h-3.5 w-3.5 mr-1.5" /> Cancel
         </Button>
-        <Button size="sm" onClick={handleSave} disabled={saving} className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button onClick={handleSave} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
           {saving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
           Save Changes
         </Button>
-      </div>
+      </DialogFooter>
     </div>
   )
 }

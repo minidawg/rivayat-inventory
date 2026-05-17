@@ -14,6 +14,7 @@ export async function stockIn(
   exchangeRate: number,
   source: string,
   notes: string,
+  paidToWajid: boolean,
 ) {
   const client = await getSupabaseServerClient()
   const totalCostPerUnit = costPKR + commissionPKR + shippingPKR
@@ -84,6 +85,7 @@ export async function stockIn(
       exchange_rate: exchangeRate,
       source: source || null,
       notes: notes || null,
+      paid_to_wajid: paidToWajid,
     })
     if (error) throw error
   }
@@ -102,6 +104,7 @@ export async function recordSale(
   clientName: string,
   avgCostPKR: number,
   exchangeRate: number,
+  paymentMethod: string,
 ) {
   const client = await getSupabaseServerClient()
 
@@ -123,11 +126,12 @@ export async function recordSale(
   const { error: saleError } = await client.from('sales').insert({
     sku_id: skuId,
     quantity,
-    selling_price: sellingPriceUSD,   // stored as USD
+    selling_price: sellingPriceUSD,
     cost_pkr_at_sale: avgCostPKR,
     exchange_rate_at_sale: exchangeRate,
     channel: channel || null,
     client_name: clientName || null,
+    payment_method: paymentMethod || null,
   })
   if (saleError) throw saleError
 }
@@ -229,6 +233,17 @@ export async function clearAllData() {
   await client.from('purchases').delete().not('id', 'is', null)
   await client.from('skus').delete().not('id', 'is', null)
   await client.from('articles').delete().not('id', 'is', null)
+}
+
+// ─── Paid to Wajid ────────────────────────────────────────────────────────────
+
+export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean) {
+  const client = await getSupabaseServerClient()
+  const { error } = await client
+    .from('purchases')
+    .update({ paid_to_wajid: paidToWajid })
+    .eq('sku_id', skuId)
+  if (error) throw error
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────

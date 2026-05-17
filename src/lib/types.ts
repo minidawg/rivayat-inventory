@@ -28,15 +28,15 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'skus_article_id_fkey'; columns: ['article_id']; referencedRelation: 'articles'; referencedColumns: ['id'] }]
       }
       purchases: {
-        Row:    { id: string; created_at: string; sku_id: string; quantity: number; cost_pkr: number; commission_pkr: number; shipping_pkr: number; exchange_rate: number; source: string | null; notes: string | null }
-        Insert: { id?: string; created_at?: string; sku_id: string; quantity: number; cost_pkr: number; commission_pkr?: number; shipping_pkr?: number; exchange_rate: number; source?: string | null; notes?: string | null }
-        Update: { id?: string; created_at?: string; sku_id?: string; quantity?: number; cost_pkr?: number; commission_pkr?: number; shipping_pkr?: number; exchange_rate?: number; source?: string | null; notes?: string | null }
+        Row:    { id: string; created_at: string; sku_id: string; quantity: number; cost_pkr: number; commission_pkr: number; shipping_pkr: number; exchange_rate: number; source: string | null; notes: string | null; paid_to_wajid: boolean }
+        Insert: { id?: string; created_at?: string; sku_id: string; quantity: number; cost_pkr: number; commission_pkr?: number; shipping_pkr?: number; exchange_rate: number; source?: string | null; notes?: string | null; paid_to_wajid?: boolean }
+        Update: { id?: string; created_at?: string; sku_id?: string; quantity?: number; cost_pkr?: number; commission_pkr?: number; shipping_pkr?: number; exchange_rate?: number; source?: string | null; notes?: string | null; paid_to_wajid?: boolean }
         Relationships: [{ foreignKeyName: 'purchases_sku_id_fkey'; columns: ['sku_id']; referencedRelation: 'skus'; referencedColumns: ['id'] }]
       }
       sales: {
-        Row:    { id: string; created_at: string; sku_id: string; quantity: number; selling_price: number; cost_pkr_at_sale: number | null; exchange_rate_at_sale: number | null; channel: string | null; client_name: string | null }
-        Insert: { id?: string; created_at?: string; sku_id: string; quantity: number; selling_price: number; cost_pkr_at_sale?: number | null; exchange_rate_at_sale?: number | null; channel?: string | null; client_name?: string | null }
-        Update: { id?: string; created_at?: string; sku_id?: string; quantity?: number; selling_price?: number; cost_pkr_at_sale?: number | null; exchange_rate_at_sale?: number | null; channel?: string | null; client_name?: string | null }
+        Row:    { id: string; created_at: string; sku_id: string; quantity: number; selling_price: number; cost_pkr_at_sale: number | null; exchange_rate_at_sale: number | null; channel: string | null; client_name: string | null; payment_method: string | null }
+        Insert: { id?: string; created_at?: string; sku_id: string; quantity: number; selling_price: number; cost_pkr_at_sale?: number | null; exchange_rate_at_sale?: number | null; channel?: string | null; client_name?: string | null; payment_method?: string | null }
+        Update: { id?: string; created_at?: string; sku_id?: string; quantity?: number; selling_price?: number; cost_pkr_at_sale?: number | null; exchange_rate_at_sale?: number | null; channel?: string | null; client_name?: string | null; payment_method?: string | null }
         Relationships: [{ foreignKeyName: 'sales_sku_id_fkey'; columns: ['sku_id']; referencedRelation: 'skus'; referencedColumns: ['id'] }]
       }
       settings: {
@@ -64,8 +64,11 @@ export type Size = typeof SIZES[number]
 export const SOURCES = ['prebook', 'released'] as const
 export type Source = typeof SOURCES[number]
 
-export const CHANNELS = ['Instagram', 'Walk-in', 'WhatsApp', 'Facebook', 'Website', 'TikTok'] as const
+export const CHANNELS = ['WhatsApp', 'Instagram', 'Exhibition'] as const
 export type Channel = typeof CHANNELS[number]
+
+export const PAYMENT_METHODS = ['Zelle', 'Cash'] as const
+export type PaymentMethod = typeof PAYMENT_METHODS[number]
 
 // ─── View types (returned by DAL, camelCase) ─────────────────────────────────
 
@@ -88,6 +91,7 @@ export interface SaleRow {
   exchangeRateAtSale: number | null
   channel: string | null
   clientName: string | null
+  paymentMethod: string | null
   size: string
   articleId: string
   articleName: string
@@ -107,6 +111,7 @@ export interface PurchaseRow {
   exchangeRate: number
   source: string | null
   notes: string | null
+  paidToWajid: boolean
   size: string
   articleName: string
   brandName: string
@@ -128,6 +133,8 @@ export interface ArticleInventory {
     lowStockBuffer: number
     avgCostPKR: number
     avgExchangeRate: number
+    /** false if any purchase for this SKU has paid_to_wajid = false */
+    paidToWajid: boolean
   }[]
 }
 

@@ -4,11 +4,12 @@ import { useEffect } from 'react'
 
 export function ThemeBootstrap() {
   useEffect(() => {
+    const html = document.documentElement
     const saved = localStorage.getItem('rivayat-theme')
     if (saved === 'amethyst') {
-      document.documentElement.classList.add('theme-amethyst')
+      html.classList.add('theme-amethyst', 'dark')
     } else {
-      document.documentElement.classList.remove('theme-amethyst')
+      html.classList.remove('theme-amethyst', 'dark')
     }
   }, [])
   return null

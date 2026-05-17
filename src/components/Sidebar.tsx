@@ -64,11 +64,11 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
   function toggleTheme() {
     const html = document.documentElement
     if (isAmethyst) {
-      html.classList.remove('theme-amethyst')
+      html.classList.remove('theme-amethyst', 'dark')
       localStorage.setItem('rivayat-theme', 'gold')
       setIsAmethyst(false)
     } else {
-      html.classList.add('theme-amethyst')
+      html.classList.add('theme-amethyst', 'dark')
       localStorage.setItem('rivayat-theme', 'amethyst')
       setIsAmethyst(true)
     }

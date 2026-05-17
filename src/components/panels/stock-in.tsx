@@ -41,6 +41,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
   const [commissionPKR, setCommissionPKR] = useState('')
   const [shippingPKR,   setShippingPKR]   = useState('0')
   const [source,        setSource]        = useState<typeof SOURCES[number]>('prebook')
+  const [paidToWajid,   setPaidToWajid]   = useState(false)
   const [notes,         setNotes]         = useState('')
   const [isSubmitting,  setIsSubmitting]  = useState(false)
   const [success,       setSuccess]       = useState(false)
@@ -85,7 +86,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
     setBrandId(''); setCollectionId(''); setArticleName('')
     setSizeRows([{ id: 0, size: 'M', quantity: 1 }])
     setCostPKR(''); setCommissionPKR(''); setShippingPKR('0')
-    setSource('prebook'); setNotes(''); setNextId(1)
+    setSource('prebook'); setPaidToWajid(false); setNotes(''); setNextId(1)
   }
 
   async function handleSubmit() {
@@ -99,7 +100,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
         articleName.trim(), collectionId,
         valid.map(r => ({ size: r.size, quantity: r.quantity })),
         Number(costPKR), Number(commissionPKR) || 0, Number(shippingPKR) || 0,
-        exchangeRate, source, notes.trim(),
+        exchangeRate, source, notes.trim(), paidToWajid,
       )
       router.refresh()
       resetForm()
@@ -283,6 +284,18 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 <select value={source} onChange={e => setSource(e.target.value as typeof SOURCES[number])} className={selectClass}>
                   <option value="prebook">Pre-book</option>
                   <option value="released">Released</option>
+                </select>
+              </div>
+
+              <div>
+                <FieldLabel>Paid to Wajid</FieldLabel>
+                <select
+                  value={paidToWajid ? 'yes' : 'no'}
+                  onChange={e => setPaidToWajid(e.target.value === 'yes')}
+                  className={selectClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
                 </select>
               </div>
 
