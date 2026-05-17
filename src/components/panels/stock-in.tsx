@@ -56,15 +56,13 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
     const c  = Number(costPKR)       || 0
     const co = Number(commissionPKR) || 0
     const sh = Number(shippingPKR)   || 0
-    const unitPKR  = totalCostPKR(c, co, sh)
-    const linePKR  = unitPKR * totalUnits
-    const sellPKR  = suggestedSellPrice(c, co, sh)
-    const margin   = sellPKR > 0 ? ((sellPKR - unitPKR) / sellPKR) * 100 : 0
+    const unitPKR = totalCostPKR(c, co, sh)
+    const linePKR = unitPKR * totalUnits
+    const sellPKR = suggestedSellPrice(c, co, sh)
     return {
-      unitPKR,  unitUSD:  unitPKR  / exchangeRate,
-      linePKR,  lineUSD:  linePKR  / exchangeRate,
-      sellPKR,  sellUSD:  sellPKR  / exchangeRate,
-      margin,
+      unitPKR,  unitUSD: unitPKR / exchangeRate,
+      linePKR,  lineUSD: linePKR / exchangeRate,
+      sellPKR,  sellUSD: sellPKR / exchangeRate,
     }
   }, [costPKR, commissionPKR, shippingPKR, exchangeRate, totalUnits])
 
@@ -322,9 +320,9 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
               </div>
 
               {/* Per-unit all-in */}
-              <div className="rounded-xl bg-white/[0.03] px-4 py-3">
+              <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Unit Cost (all-in)</div>
-                <div className="text-2xl font-bold num-display">
+                <div className="text-2xl font-bold num-display text-foreground">
                   {cost.unitPKR ? formatPKR(cost.unitPKR) : '—'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
@@ -354,18 +352,6 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 </div>
               </div>
 
-              {/* Margin */}
-              {cost.margin > 0 && (
-                <div className={cn(
-                  'rounded-xl px-4 py-2.5 flex items-center justify-between',
-                  cost.margin >= 25 ? 'bg-success/8 border border-success/15' : 'bg-amber-500/8 border border-amber-500/15',
-                )}>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Est. Margin</span>
-                  <span className={cn('text-base font-bold num-display', cost.margin >= 25 ? 'text-success' : 'text-amber-400')}>
-                    {cost.margin.toFixed(1)}%
-                  </span>
-                </div>
-              )}
             </div>
 
             <Button onClick={handleSubmit} disabled={!isValid || isSubmitting}

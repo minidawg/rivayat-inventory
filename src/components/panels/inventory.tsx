@@ -22,6 +22,7 @@ import {
   Download, Edit, ChevronDown, ChevronUp, Package, Search, Filter,
   Trash2, X, Check, Loader2, AlertTriangle,
 } from 'lucide-react'
+import { exportAllData } from '@/lib/actions'
 import { cn } from '@/lib/utils'
 
 interface InventoryProps {
@@ -31,12 +32,6 @@ interface InventoryProps {
   onSuccess?: () => void
 }
 
-function StockBadge({ qty, buffer }: { qty: number; buffer: number }) {
-  if (qty === 0) return <span className="inline-flex items-center rounded-md bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold text-destructive">Out of stock</span>
-  if (qty <= buffer) return <span className="inline-flex items-center rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">Low stock</span>
-  return <span className="inline-flex items-center rounded-md bg-success/15 px-2 py-0.5 text-[10px] font-semibold text-success">In stock</span>
-}
-
 export function Inventory({ inventory, brands, exchangeRate, onSuccess }: InventoryProps) {
   const [searchTerm, setSearchTerm]     = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'low'>('all')
@@ -44,6 +39,7 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
   const [sizeFilter, setSizeFilter]     = useState('all')
   const [showOutOfStock, setShowOutOfStock] = useState(true)
   const [deletingId, setDeletingId]     = useState<string | null>(null)
+  const [isExporting, setIsExporting]   = useState(false)
 
   const { inStock, outOfStock } = useMemo(() => {
     let f = inventory
@@ -65,20 +61,77 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
     return Array.from(s).sort((a, b) => { const ai = SIZES.indexOf(a as any), bi = SIZES.indexOf(b as any); return ai === -1 ? 1 : bi === -1 ? -1 : ai - bi })
   }, [inventory])
 
-  const exportCSV = () => {
-    const rows: string[][] = [['Brand','Collection','Article','Size','Qty','Cost PKR','Cost USD','Sell USD']]
-    for (const item of inStock) {
-      for (const sku of item.skus.filter(s => s.quantity > 0)) {
-        const sell = suggestedSellPrice(sku.avgCostPKR, 0, 0) / exchangeRate
-        rows.push([item.brandName, item.collectionName, item.articleName, sku.size, String(sku.quantity),
-          String(Math.round(sku.avgCostPKR)), String((sku.avgCostPKR / exchangeRate).toFixed(2)), sell.toFixed(2)])
+  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const csvRow = (...cols: unknown[]) => cols.map(esc).join(',')
+
+  async function handleExport() {
+    setIsExporting(true)
+    try {
+      const { articles, purchases, sales } = await exportAllData()
+
+      const lines: string[] = []
+      const date = new Date().toISOString().slice(0, 10)
+
+      // ── Inventory ──
+      lines.push(csvRow('=== INVENTORY ==='))
+      lines.push(csvRow('Brand','Collection','Article','Size','Qty','Avg Cost PKR','Avg Cost USD','Suggested Sell USD'))
+      for (const a of articles) {
+        const brand = a.collections?.brands?.name ?? ''
+        const col   = a.collections?.name ?? ''
+        for (const s of a.skus ?? []) {
+          const rate = s.avg_exchange_rate || exchangeRate
+          const sell = (Math.round((s.avg_cost_pkr ?? 0) * 1.35) / rate).toFixed(2)
+          lines.push(csvRow(brand, col, a.name, s.size, s.quantity ?? 0,
+            Math.round(s.avg_cost_pkr ?? 0), ((s.avg_cost_pkr ?? 0) / rate).toFixed(2), sell))
+        }
       }
+
+      lines.push('')
+
+      // ── Purchases ──
+      lines.push(csvRow('=== PURCHASES ==='))
+      lines.push(csvRow('Date','Brand','Collection','Article','Size','Qty',
+        'Cost PKR','Commission PKR','Shipping PKR','Total Cost PKR','Exchange Rate','Source','Notes','Paid To Wajid'))
+      for (const p of purchases) {
+        const sku  = p.skus
+        const brand  = sku?.articles?.collections?.brands?.name ?? ''
+        const col    = sku?.articles?.collections?.name ?? ''
+        const article= sku?.articles?.name ?? ''
+        const total  = (p.cost_pkr ?? 0) + (p.commission_pkr ?? 0) + (p.shipping_pkr ?? 0)
+        lines.push(csvRow(
+          p.created_at?.slice(0,10) ?? '', brand, col, article, sku?.size ?? '',
+          p.quantity ?? 0, p.cost_pkr ?? 0, p.commission_pkr ?? 0, p.shipping_pkr ?? 0,
+          total, p.exchange_rate ?? '', p.source ?? '', p.notes ?? '',
+          p.paid_to_wajid ? 'Yes' : 'No'))
+      }
+
+      lines.push('')
+
+      // ── Sales ──
+      lines.push(csvRow('=== SALES ==='))
+      lines.push(csvRow('Date','Brand','Article','Size','Qty','Price USD',
+        'Cost PKR at Sale','Exchange Rate','Payment Method','Channel','Client Name'))
+      for (const s of sales) {
+        const sku  = s.skus
+        const brand  = sku?.articles?.collections?.brands?.name ?? ''
+        const article= sku?.articles?.name ?? ''
+        lines.push(csvRow(
+          s.created_at?.slice(0,10) ?? '', brand, article, sku?.size ?? '',
+          s.quantity ?? 0, s.selling_price ?? 0,
+          s.cost_pkr_at_sale ?? '', s.exchange_rate_at_sale ?? '',
+          s.payment_method ?? '', s.channel ?? '', s.client_name ?? ''))
+      }
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `rivayat-full-backup-${date}.csv`
+      a.click()
+    } catch (err) {
+      console.error('Export failed:', err)
+    } finally {
+      setIsExporting(false)
     }
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-    a.download = `inventory-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
   }
 
   return (
@@ -90,9 +143,11 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
           </h2>
           <p className="text-sm text-muted-foreground">{inStock.length} articles in stock</p>
         </div>
-        <Button onClick={exportCSV} size="sm"
-          className="gap-2 border border-primary/20 bg-primary/8 text-primary hover:bg-primary/15 hover:border-primary/30">
-          <Download className="h-4 w-4" /> Export CSV
+        <Button onClick={handleExport} disabled={isExporting} size="sm"
+          className="gap-2 border border-primary/20 bg-primary/8 text-primary hover:bg-primary/15 hover:border-primary/30 disabled:opacity-50">
+          {isExporting
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> Exporting…</>
+            : <><Download className="h-4 w-4" /> Full Backup</>}
         </Button>
       </div>
 
@@ -188,7 +243,6 @@ function InventoryCard({
   const suggestUSD = suggestedSellPrice(avgCost, 0, 0) / exchangeRate
   const marginPct  = avgCost > 0 ? ((suggestUSD - avgCost / exchangeRate) / suggestUSD) * 100 : 0
 
-  const hasLow    = item.skus.some(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer)
   const hasUnpaid = item.skus.some(s => !s.paidToWajid)
 
   return (
@@ -210,14 +264,16 @@ function InventoryCard({
 
       {/* Top row */}
       <div className="mb-4 flex items-start justify-between gap-2">
-        <div className="min-w-0 pr-8">
-          <div className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary mb-1.5">
-            {item.brandName}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="mb-1.5 flex max-w-full">
+            <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary whitespace-nowrap overflow-hidden max-w-full" style={{ minWidth: 0 }}>
+              <span className="truncate">{item.brandName}</span>
+            </span>
           </div>
           <div className="text-base font-semibold leading-tight group-hover:text-primary transition-colors truncate">
             {item.articleName}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">{item.collectionName}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{item.collectionName}</div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
@@ -259,10 +315,7 @@ function InventoryCard({
 
           {/* Footer */}
           <div className="flex items-end justify-between border-t border-white/5 pt-3 mt-3">
-            <div className="flex items-center gap-2">
-              <StockBadge qty={item.totalQuantity} buffer={item.skus[0]?.lowStockBuffer ?? 2} />
-              {hasLow && <span className="text-[10px] text-amber-400/70">Some sizes low</span>}
-            </div>
+            <div />
             <div className="text-right">
               {avgCost > 0 && (
                 <>

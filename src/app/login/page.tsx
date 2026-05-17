@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined);
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0A0A0A]">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background">
       {/* Ambient background glows */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-primary/5 blur-[120px]" />
@@ -31,7 +31,7 @@ export default function LoginPage() {
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-8">
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
           <div className="mb-6">
             <h2 className="text-base font-semibold text-foreground">Sign in</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Access your inventory dashboard</p>
@@ -47,7 +47,7 @@ export default function LoginPage() {
                 id="email" name="email" type="email"
                 autoComplete="email" required
                 placeholder="you@example.com"
-                className="w-full rounded-xl border border-white/10 bg-[#111] px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 transition-all focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className="w-full rounded-xl border border-border bg-input px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 transition-all focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
 
@@ -60,7 +60,7 @@ export default function LoginPage() {
                 id="password" name="password" type="password"
                 autoComplete="current-password" required
                 placeholder="••••••••"
-                className="w-full rounded-xl border border-white/10 bg-[#111] px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 transition-all focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className="w-full rounded-xl border border-border bg-input px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 transition-all focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
 

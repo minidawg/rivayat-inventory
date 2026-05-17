@@ -246,6 +246,33 @@ export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean) {
   if (error) throw error
 }
 
+// ─── Emergency Full Backup Export ────────────────────────────────────────────
+
+export async function exportAllData() {
+  const client = await getSupabaseServerClient()
+
+  const [{ data: articles }, { data: purchases }, { data: sales }] = await Promise.all([
+    client
+      .from('articles')
+      .select('name, collections(name, brands(name)), skus(size, quantity, avg_cost_pkr, avg_exchange_rate)')
+      .order('name'),
+    client
+      .from('purchases')
+      .select('created_at, quantity, cost_pkr, commission_pkr, shipping_pkr, exchange_rate, source, notes, paid_to_wajid, skus(size, articles(name, collections(name, brands(name))))')
+      .order('created_at', { ascending: false }),
+    client
+      .from('sales')
+      .select('created_at, quantity, selling_price, cost_pkr_at_sale, exchange_rate_at_sale, channel, client_name, payment_method, skus(size, articles(name, collections(brands(name))))')
+      .order('created_at', { ascending: false }),
+  ])
+
+  return {
+    articles: (articles ?? []) as any[],
+    purchases: (purchases ?? []) as any[],
+    sales: (sales ?? []) as any[],
+  }
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function updateSetting(key: string, value: string) {
