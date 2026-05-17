@@ -41,6 +41,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
   const [commissionPKR, setCommissionPKR] = useState('')
   const [shippingPKR,   setShippingPKR]   = useState('0')
   const [source,        setSource]        = useState<typeof SOURCES[number]>('prebook')
+  const [paidToWajid,   setPaidToWajid]   = useState(false)
   const [notes,         setNotes]         = useState('')
   const [isSubmitting,  setIsSubmitting]  = useState(false)
   const [success,       setSuccess]       = useState(false)
@@ -55,15 +56,13 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
     const c  = Number(costPKR)       || 0
     const co = Number(commissionPKR) || 0
     const sh = Number(shippingPKR)   || 0
-    const unitPKR  = totalCostPKR(c, co, sh)
-    const linePKR  = unitPKR * totalUnits
-    const sellPKR  = suggestedSellPrice(c, co, sh)
-    const margin   = sellPKR > 0 ? ((sellPKR - unitPKR) / sellPKR) * 100 : 0
+    const unitPKR = totalCostPKR(c, co, sh)
+    const linePKR = unitPKR * totalUnits
+    const sellPKR = suggestedSellPrice(c, co, sh)
     return {
-      unitPKR,  unitUSD:  unitPKR  / exchangeRate,
-      linePKR,  lineUSD:  linePKR  / exchangeRate,
-      sellPKR,  sellUSD:  sellPKR  / exchangeRate,
-      margin,
+      unitPKR,  unitUSD: unitPKR / exchangeRate,
+      linePKR,  lineUSD: linePKR / exchangeRate,
+      sellPKR,  sellUSD: sellPKR / exchangeRate,
     }
   }, [costPKR, commissionPKR, shippingPKR, exchangeRate, totalUnits])
 
@@ -85,7 +84,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
     setBrandId(''); setCollectionId(''); setArticleName('')
     setSizeRows([{ id: 0, size: 'M', quantity: 1 }])
     setCostPKR(''); setCommissionPKR(''); setShippingPKR('0')
-    setSource('prebook'); setNotes(''); setNextId(1)
+    setSource('prebook'); setPaidToWajid(false); setNotes(''); setNextId(1)
   }
 
   async function handleSubmit() {
@@ -99,7 +98,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
         articleName.trim(), collectionId,
         valid.map(r => ({ size: r.size, quantity: r.quantity })),
         Number(costPKR), Number(commissionPKR) || 0, Number(shippingPKR) || 0,
-        exchangeRate, source, notes.trim(),
+        exchangeRate, source, notes.trim(), paidToWajid,
       )
       router.refresh()
       resetForm()
@@ -286,6 +285,18 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 </select>
               </div>
 
+              <div>
+                <FieldLabel>Paid to Wajid</FieldLabel>
+                <select
+                  value={paidToWajid ? 'yes' : 'no'}
+                  onChange={e => setPaidToWajid(e.target.value === 'yes')}
+                  className={selectClass}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+
               <div className="md:col-span-2">
                 <FieldLabel>Notes <span className="font-normal lowercase tracking-normal text-muted-foreground/50">(optional)</span></FieldLabel>
                 <Input value={notes} onChange={e => setNotes(e.target.value)}
@@ -309,9 +320,9 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
               </div>
 
               {/* Per-unit all-in */}
-              <div className="rounded-xl bg-white/[0.03] px-4 py-3">
+              <div className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Unit Cost (all-in)</div>
-                <div className="text-2xl font-bold num-display">
+                <div className="text-2xl font-bold num-display text-foreground">
                   {cost.unitPKR ? formatPKR(cost.unitPKR) : '—'}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
@@ -341,18 +352,6 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 </div>
               </div>
 
-              {/* Margin */}
-              {cost.margin > 0 && (
-                <div className={cn(
-                  'rounded-xl px-4 py-2.5 flex items-center justify-between',
-                  cost.margin >= 25 ? 'bg-success/8 border border-success/15' : 'bg-amber-500/8 border border-amber-500/15',
-                )}>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Est. Margin</span>
-                  <span className={cn('text-base font-bold num-display', cost.margin >= 25 ? 'text-success' : 'text-amber-400')}>
-                    {cost.margin.toFixed(1)}%
-                  </span>
-                </div>
-              )}
             </div>
 
             <Button onClick={handleSubmit} disabled={!isValid || isSubmitting}

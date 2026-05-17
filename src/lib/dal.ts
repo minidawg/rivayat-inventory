@@ -51,7 +51,7 @@ export async function getInventory(): Promise<ArticleInventory[]> {
       .select(`
         id, name,
         collections( id, name, brands(id, name) ),
-        skus( id, size, quantity, low_stock_buffer, avg_cost_pkr, avg_exchange_rate )
+        skus( id, size, quantity, low_stock_buffer, avg_cost_pkr, avg_exchange_rate, purchases(paid_to_wajid) )
       `)
       .order('name')
 
@@ -72,6 +72,7 @@ export async function getInventory(): Promise<ArticleInventory[]> {
         lowStockBuffer: s.low_stock_buffer,
         avgCostPKR: s.avg_cost_pkr,
         avgExchangeRate: s.avg_exchange_rate,
+        paidToWajid: !(s.purchases ?? []).some((p: any) => p.paid_to_wajid === false),
       })),
     }))
   } catch {
@@ -104,7 +105,7 @@ export async function getSales(): Promise<SaleRow[]> {
       .from('sales')
       .select(`
         id, created_at, quantity, selling_price, cost_pkr_at_sale,
-        exchange_rate_at_sale, channel, client_name,
+        exchange_rate_at_sale, channel, client_name, payment_method,
         skus( size, articles( id, name, collections( brands(name) ) ) )
       `)
       .order('created_at', { ascending: false })
@@ -115,11 +116,12 @@ export async function getSales(): Promise<SaleRow[]> {
       id: s.id,
       createdAt: s.created_at,
       quantity: s.quantity,
-      sellingPrice: s.selling_price,         // USD
-      costPKRAtSale: s.cost_pkr_at_sale,     // PKR cost basis
+      sellingPrice: s.selling_price,
+      costPKRAtSale: s.cost_pkr_at_sale,
       exchangeRateAtSale: s.exchange_rate_at_sale,
       channel: s.channel,
       clientName: s.client_name,
+      paymentMethod: s.payment_method,
       size: s.skus?.size ?? '',
       articleId: s.skus?.articles?.id ?? '',
       articleName: s.skus?.articles?.name ?? '',
@@ -139,7 +141,7 @@ export async function getPurchases(): Promise<PurchaseRow[]> {
       .from('purchases')
       .select(`
         id, created_at, quantity, cost_pkr, commission_pkr, shipping_pkr,
-        exchange_rate, source, notes,
+        exchange_rate, source, notes, paid_to_wajid,
         skus( size, articles( name, collections( name, brands(name) ) ) )
       `)
       .order('created_at', { ascending: false })
@@ -156,6 +158,7 @@ export async function getPurchases(): Promise<PurchaseRow[]> {
       exchangeRate: p.exchange_rate,
       source: p.source,
       notes: p.notes,
+      paidToWajid: p.paid_to_wajid ?? false,
       size: p.skus?.size ?? '',
       articleName: p.skus?.articles?.name ?? '',
       brandName: p.skus?.articles?.collections?.brands?.name ?? '',

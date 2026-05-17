@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatPKR, formatUSD } from '@/lib/data'
 import { recordSale } from '@/lib/actions'
-import { CHANNELS } from '@/lib/types'
+import { CHANNELS, PAYMENT_METHODS } from '@/lib/types'
 import type { ArticleInventory } from '@/lib/types'
 import { Loader2, Search, ShoppingCart, User, CheckCircle2, X, Plus, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -47,6 +47,7 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
   const [selectedArticle,  setSelectedArticle]  = useState<ArticleInventory | null>(null)
   const [sizesToSell,      setSizesToSell]      = useState<SizeToSell[]>([])
   const [channel,          setChannel]          = useState<typeof CHANNELS[number]>(CHANNELS[0])
+  const [paymentMethod,    setPaymentMethod]    = useState<typeof PAYMENT_METHODS[number]>(PAYMENT_METHODS[0])
   const [clientName,       setClientName]       = useState('')
   const [isSubmitting,     setIsSubmitting]     = useState(false)
   const [successSummary,   setSuccessSummary]   = useState<SaleSummary | null>(null)
@@ -108,7 +109,7 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
 
   function resetForm() {
     setSearchTerm(''); setSelectedArticle(null); setSizesToSell([])
-    setChannel(CHANNELS[0]); setClientName('')
+    setChannel(CHANNELS[0]); setPaymentMethod(PAYMENT_METHODS[0]); setClientName('')
   }
 
   // ── Summary calc ─────────────────────────────────────────────────────────
@@ -136,11 +137,12 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
         await recordSale(
           item.skuId,
           item.quantity,
-          Number(item.sellingPriceUSD),    // USD price — stored as selling_price
+          Number(item.sellingPriceUSD),
           channel,
           clientName.trim(),
           item.avgCostPKR,
           item.avgExchangeRate || exchangeRate,
+          paymentMethod,
         )
       }
       setSuccessSummary(summary)
@@ -348,13 +350,20 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
             </div>
             <div className="grid gap-5 md:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">Sale Channel</Label>
+                <Label className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">Customer Type / Channel</Label>
                 <select value={channel} onChange={e => setChannel(e.target.value as typeof CHANNELS[number])}
                   className="flex h-11 w-full rounded-xl border border-white/10 bg-[#111] px-4 text-sm text-foreground focus:border-primary/40 focus:outline-none">
                   {CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
+                <Label className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">Payment Method</Label>
+                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as typeof PAYMENT_METHODS[number])}
+                  className="flex h-11 w-full rounded-xl border border-white/10 bg-[#111] px-4 text-sm text-foreground focus:border-primary/40 focus:outline-none">
+                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor={clientId} className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                   Client Name <span className="font-normal lowercase tracking-normal text-muted-foreground/60">(optional)</span>
                 </Label>

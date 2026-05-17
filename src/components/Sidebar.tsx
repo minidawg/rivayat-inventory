@@ -64,11 +64,11 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
   function toggleTheme() {
     const html = document.documentElement
     if (isAmethyst) {
-      html.classList.remove('theme-amethyst')
+      html.classList.remove('theme-amethyst', 'dark')
       localStorage.setItem('rivayat-theme', 'gold')
       setIsAmethyst(false)
     } else {
-      html.classList.add('theme-amethyst')
+      html.classList.add('theme-amethyst', 'dark')
       localStorage.setItem('rivayat-theme', 'amethyst')
       setIsAmethyst(true)
     }
@@ -94,11 +94,11 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
       <aside
         className={cn(
           'fixed left-0 top-0 bottom-0 z-[100] flex w-[260px] flex-col overflow-hidden transition-transform duration-400',
-          'border-r border-[rgba(255,255,255,0.04)]',
+          'border-r border-border',
           'md:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full',
         )}
-        style={{ background: 'linear-gradient(180deg, #0F0F0F 0%, #0A0A0A 100%)' }}
+        style={{ background: 'var(--background)' }}
       >
         {/* Ambient glow */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -107,7 +107,7 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
         </div>
 
         {/* Brand header */}
-        <div className="relative border-b border-[rgba(255,255,255,0.05)] px-6 pb-5 pt-7">
+        <div className="relative border-b border-border px-6 pb-5 pt-7">
           <div className="flex items-center gap-3 mb-2">
             <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -154,7 +154,7 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
                           'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-250',
                           isActive
                             ? 'bg-primary/10 text-foreground'
-                            : 'text-muted-foreground hover:bg-white/[0.03] hover:text-foreground/80',
+                            : 'text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground/80',
                         )}
                       >
                         {isActive && (
@@ -180,7 +180,7 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="relative border-t border-[rgba(255,255,255,0.05)] px-4 py-4 space-y-3">
+        <div className="relative border-t border-border px-4 py-4 space-y-3">
           {/* Connection + theme row */}
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -231,7 +231,7 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
               type="number"
               value={localRate}
               onChange={(e) => handleRateChange(Number(e.target.value) || 278)}
-              className="w-16 rounded-lg border border-primary/15 bg-[#111] px-2 py-1 text-center text-[12px] font-semibold text-foreground transition-all focus:border-primary/40 focus:outline-none"
+              className="w-16 rounded-lg border border-primary/15 bg-input px-2 py-1 text-center text-[12px] font-semibold text-foreground transition-all focus:border-primary/40 focus:outline-none"
               min="1"
             />
           </div>

@@ -14,6 +14,7 @@ export async function stockIn(
   exchangeRate: number,
   source: string,
   notes: string,
+  paidToWajid: boolean,
 ) {
   const client = await getSupabaseServerClient()
   const totalCostPerUnit = costPKR + commissionPKR + shippingPKR
@@ -84,6 +85,7 @@ export async function stockIn(
       exchange_rate: exchangeRate,
       source: source || null,
       notes: notes || null,
+      paid_to_wajid: paidToWajid,
     })
     if (error) throw error
   }
@@ -102,6 +104,7 @@ export async function recordSale(
   clientName: string,
   avgCostPKR: number,
   exchangeRate: number,
+  paymentMethod: string,
 ) {
   const client = await getSupabaseServerClient()
 
@@ -123,11 +126,12 @@ export async function recordSale(
   const { error: saleError } = await client.from('sales').insert({
     sku_id: skuId,
     quantity,
-    selling_price: sellingPriceUSD,   // stored as USD
+    selling_price: sellingPriceUSD,
     cost_pkr_at_sale: avgCostPKR,
     exchange_rate_at_sale: exchangeRate,
     channel: channel || null,
     client_name: clientName || null,
+    payment_method: paymentMethod || null,
   })
   if (saleError) throw saleError
 }
@@ -229,6 +233,44 @@ export async function clearAllData() {
   await client.from('purchases').delete().not('id', 'is', null)
   await client.from('skus').delete().not('id', 'is', null)
   await client.from('articles').delete().not('id', 'is', null)
+}
+
+// ─── Paid to Wajid ────────────────────────────────────────────────────────────
+
+export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean) {
+  const client = await getSupabaseServerClient()
+  const { error } = await client
+    .from('purchases')
+    .update({ paid_to_wajid: paidToWajid })
+    .eq('sku_id', skuId)
+  if (error) throw error
+}
+
+// ─── Emergency Full Backup Export ────────────────────────────────────────────
+
+export async function exportAllData() {
+  const client = await getSupabaseServerClient()
+
+  const [{ data: articles }, { data: purchases }, { data: sales }] = await Promise.all([
+    client
+      .from('articles')
+      .select('name, collections(name, brands(name)), skus(size, quantity, avg_cost_pkr, avg_exchange_rate)')
+      .order('name'),
+    client
+      .from('purchases')
+      .select('created_at, quantity, cost_pkr, commission_pkr, shipping_pkr, exchange_rate, source, notes, paid_to_wajid, skus(size, articles(name, collections(name, brands(name))))')
+      .order('created_at', { ascending: false }),
+    client
+      .from('sales')
+      .select('created_at, quantity, selling_price, cost_pkr_at_sale, exchange_rate_at_sale, channel, client_name, payment_method, skus(size, articles(name, collections(brands(name))))')
+      .order('created_at', { ascending: false }),
+  ])
+
+  return {
+    articles: (articles ?? []) as any[],
+    purchases: (purchases ?? []) as any[],
+    sales: (sales ?? []) as any[],
+  }
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
