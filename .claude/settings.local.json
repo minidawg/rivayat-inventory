@@ -21,7 +21,10 @@
       "Bash(Out-String)",
       "Bash(npx vercel *)",
       "Read(//c/Users/syed.hamza/AppData/Roaming/com.vercel.cli/**)",
-      "Read(//c/Users/syed.hamza/.config/vercel/**)"
+      "Read(//c/Users/syed.hamza/.config/vercel/**)",
+      "Bash(git checkout *)",
+      "Bash(npx tsc *)",
+      "Bash(git commit *)"
     ]
   }
 }
