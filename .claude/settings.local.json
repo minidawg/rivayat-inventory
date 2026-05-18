@@ -24,7 +24,8 @@
       "Read(//c/Users/syed.hamza/.config/vercel/**)",
       "Bash(git checkout *)",
       "Bash(npx tsc *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git pull *)"
     ]
   }
 }
