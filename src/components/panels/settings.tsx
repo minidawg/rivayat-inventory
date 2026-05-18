@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { addBrand, deleteBrand, addCollection, deleteCollection, clearAllData } from '@/lib/actions'
 import type { BrandWithCollections } from '@/lib/types'
 import { ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle, Sparkles, Search, Check, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface SettingsProps {
@@ -47,18 +48,20 @@ export function Settings({ brands, onSuccess }: SettingsProps) {
     if (!newBrandName.trim()) return
     setIsAddingBrand(true)
     try {
-      await addBrand(newBrandName.trim())
-      router.refresh(); setNewBrandName(''); onSuccess?.()
-    } catch (err) { console.error(err) }
+      const result = await addBrand(newBrandName.trim())
+      if (result?.error) { toast.error(result.error) }
+      else { router.refresh(); setNewBrandName(''); onSuccess?.() }
+    } catch (err: any) { toast.error(err?.message || 'Failed to add brand.') }
     finally { setIsAddingBrand(false) }
   }
 
   async function handleDeleteBrand(brandId: string) {
     setDeletingBrandId(brandId)
     try {
-      await deleteBrand(brandId)
-      router.refresh(); setConfirmDeleteBrand(null); onSuccess?.()
-    } catch (err) { console.error(err) }
+      const result = await deleteBrand(brandId)
+      if (result?.error) { toast.error(result.error) }
+      else { router.refresh(); setConfirmDeleteBrand(null); onSuccess?.() }
+    } catch (err: any) { toast.error(err?.message || 'Failed to delete brand.') }
     finally { setDeletingBrandId(null) }
   }
 
@@ -68,20 +71,20 @@ export function Settings({ brands, onSuccess }: SettingsProps) {
     if (!name) return
     setAddingColFor(brandId)
     try {
-      await addCollection(name, brandId)
-      router.refresh()
-      setNewColNames(prev => ({ ...prev, [brandId]: '' }))
-      onSuccess?.()
-    } catch (err) { console.error(err) }
+      const result = await addCollection(name, brandId)
+      if (result?.error) { toast.error(result.error) }
+      else { router.refresh(); setNewColNames(prev => ({ ...prev, [brandId]: '' })); onSuccess?.() }
+    } catch (err: any) { toast.error(err?.message || 'Failed to add collection.') }
     finally { setAddingColFor(null) }
   }
 
   async function handleDeleteCollection(colId: string) {
     setDeletingColId(colId)
     try {
-      await deleteCollection(colId)
-      router.refresh(); setConfirmDeleteCol(null); onSuccess?.()
-    } catch (err) { console.error(err) }
+      const result = await deleteCollection(colId)
+      if (result?.error) { toast.error(result.error) }
+      else { router.refresh(); setConfirmDeleteCol(null); onSuccess?.() }
+    } catch (err: any) { toast.error(err?.message || 'Failed to delete collection.') }
     finally { setDeletingColId(null) }
   }
 
@@ -90,9 +93,10 @@ export function Settings({ brands, onSuccess }: SettingsProps) {
     if (clearInput !== 'DELETE') return
     setIsClearing(true)
     try {
-      await clearAllData()
-      router.refresh(); setClearInput(''); setShowClearBox(false); onSuccess?.()
-    } catch (err) { console.error(err) }
+      const result = await clearAllData()
+      if (result?.error) { toast.error(result.error) }
+      else { router.refresh(); setClearInput(''); setShowClearBox(false); onSuccess?.() }
+    } catch (err: any) { toast.error(err?.message || 'Failed to clear data.') }
     finally { setIsClearing(false) }
   }
 

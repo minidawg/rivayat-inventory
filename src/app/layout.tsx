@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeBootstrap } from "@/components/ThemeBootstrap";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "Rivayat Fashion Lounge",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full antialiased">
         <ThemeBootstrap />
         {children}
+        <Toaster richColors position="bottom-right" />
       </body>
     </html>
   );

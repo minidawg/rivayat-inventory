@@ -1,23 +1,46 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { formatPKR, formatUSD, formatDate, totalCostPKR } from '@/lib/data'
+import { deletePurchase } from '@/lib/actions'
 import type { PurchaseRow } from '@/lib/types'
-import { Download, Package, Calendar, TrendingDown, Search } from 'lucide-react'
+import { Download, Package, Calendar, TrendingDown, Search, Trash2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
+import { toast } from 'sonner'
 
 interface PurchaseLogProps {
   purchases: PurchaseRow[]
   exchangeRate: number
+  onSuccess?: () => void
 }
 
 type DateFilter = 'all' | '7d' | '30d' | '90d' | 'ytd'
 
-export function PurchaseLog({ purchases, exchangeRate }: PurchaseLogProps) {
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all')
-  const [search,     setSearch]     = useState('')
+export function PurchaseLog({ purchases, exchangeRate, onSuccess }: PurchaseLogProps) {
+  const router = useRouter()
+  const [dateFilter,  setDateFilter]  = useState<DateFilter>('all')
+  const [search,      setSearch]      = useState('')
+  const [deletingId,  setDeletingId]  = useState<string | null>(null)
+  const [confirmId,   setConfirmId]   = useState<string | null>(null)
+
+  const handleDelete = async (purchaseId: string) => {
+    setDeletingId(purchaseId)
+    try {
+      const result = await deletePurchase(purchaseId)
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        router.refresh(); onSuccess?.()
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete purchase. Please try again.')
+    } finally {
+      setDeletingId(null); setConfirmId(null)
+    }
+  }
 
   const filtered = useMemo(() => {
     let list = purchases
@@ -174,7 +197,7 @@ export function PurchaseLog({ purchases, exchangeRate }: PurchaseLogProps) {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.015]">
-                  {['Date','Item','Size','Qty','Unit Cost','Fees','Line Total','Source','Notes'].map(h => (
+                  {['Date','Item','Size','Qty','Unit Cost','Fees','Line Total','Source','Notes',''].map(h => (
                     <th key={h} className="whitespace-nowrap px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -264,6 +287,27 @@ export function PurchaseLog({ purchases, exchangeRate }: PurchaseLogProps) {
                           <span className="text-muted-foreground/50">—</span>
                         )}
                       </td>
+
+                      {/* Delete — targets the exact purchase row by its UUID primary key */}
+                      <td className="px-4 py-3.5">
+                        {confirmId === p.id ? (
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-destructive/15 text-destructive hover:bg-destructive/25 transition-all disabled:opacity-50">
+                              {deletingId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                            </button>
+                            <button onClick={() => setConfirmId(null)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 text-muted-foreground hover:bg-white/10 transition-all">
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmId(p.id)}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/[0.02] text-muted-foreground transition-all hover:border-destructive/30 hover:bg-destructive/8 hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -282,7 +326,7 @@ export function PurchaseLog({ purchases, exchangeRate }: PurchaseLogProps) {
                       <div className="font-bold tabular">{formatPKR(stats.totalCostPKRVal)}</div>
                       <div className="text-xs text-muted-foreground tabular">{formatUSD(stats.totalCostUSD)}</div>
                     </td>
-                    <td colSpan={2} />
+                    <td colSpan={3} />
                   </tr>
                 </tfoot>
               )}

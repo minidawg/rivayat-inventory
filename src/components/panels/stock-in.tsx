@@ -10,6 +10,7 @@ import { stockIn } from '@/lib/actions'
 import { SIZES, SOURCES } from '@/lib/types'
 import type { BrandWithCollections } from '@/lib/types'
 import { Plus, X, Loader2, PackagePlus, Tag, CheckCircle2, Minus } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface SizeRow { id: number; size: string; quantity: number }
@@ -95,19 +96,23 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
 
     setIsSubmitting(true)
     try {
-      await stockIn(
+      const result = await stockIn(
         articleName.trim(), collectionId,
         valid.map(r => ({ size: r.size, quantity: r.quantity })),
         Number(costPKR), Number(commissionPKR) || 0, Number(shippingPKR) || 0,
         exchangeRate, source, notes.trim(),
       )
-      router.refresh()
-      resetForm()
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 4000)
-      onSuccess?.()
-    } catch (err) {
-      console.error(err)
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        router.refresh()
+        resetForm()
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 4000)
+        onSuccess?.()
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to add stock. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

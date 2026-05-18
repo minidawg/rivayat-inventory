@@ -10,6 +10,7 @@ import { updateSku, updateArticle, deleteArticle } from '@/lib/actions'
 import { SIZES } from '@/lib/types'
 import type { ArticleInventory, BrandWithCollections } from '@/lib/types'
 import { Download, Edit, ChevronDown, ChevronUp, Package, Search, Filter, Trash2, X, Check, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface InventoryProps {
@@ -278,10 +279,18 @@ function DeleteConfirm({ item, onCancel, onSuccess }: {
   async function handleDelete() {
     setLoading(true)
     try {
-      await deleteArticle(item.articleId)
-      router.refresh()
-      onSuccess?.()
-    } catch { setLoading(false); onCancel() }
+      const result = await deleteArticle(item.articleId)
+      if (result?.error) {
+        toast.error(result.error)
+        setLoading(false); onCancel()
+      } else {
+        router.refresh()
+        onSuccess?.()
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete article. Please try again.')
+      setLoading(false); onCancel()
+    }
   }
 
   return (
@@ -331,9 +340,12 @@ function EditPanel({ item, brands, exchangeRate, onClose, onSuccess }: {
       const updates: { name?: string; collection_id?: string } = {}
       if (articleName.trim() !== item.articleName) updates.name = articleName.trim()
       if (collectionId !== item.collectionId) updates.collection_id = collectionId
-      if (Object.keys(updates).length > 0) await updateArticle(item.articleId, updates)
+      if (Object.keys(updates).length > 0) {
+        const result = await updateArticle(item.articleId, updates)
+        if (result?.error) { setError(result.error); return }
+      }
 
-      // Update each SKU
+      // Update each SKU by its UUID primary key
       for (const [skuId, vals] of Object.entries(skuData)) {
         const orig = item.skus.find(s => s.skuId === skuId)
         if (!orig) continue
@@ -341,7 +353,10 @@ function EditPanel({ item, brands, exchangeRate, onClose, onSuccess }: {
         if (vals.qty !== orig.quantity) patch.quantity = vals.qty
         if (vals.buffer !== orig.lowStockBuffer) patch.lowStockBuffer = vals.buffer
         if (vals.cost !== orig.avgCostPKR) patch.avgCostPKR = vals.cost
-        if (Object.keys(patch).length > 0) await updateSku(skuId, patch)
+        if (Object.keys(patch).length > 0) {
+          const result = await updateSku(skuId, patch)
+          if (result?.error) { setError(result.error); return }
+        }
       }
 
       router.refresh(); onSuccess?.(); onClose()
