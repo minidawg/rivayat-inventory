@@ -10,6 +10,7 @@ import { recordSale } from '@/lib/actions'
 import { CHANNELS, PAYMENT_METHODS } from '@/lib/types'
 import type { ArticleInventory } from '@/lib/types'
 import { Loader2, Search, ShoppingCart, User, CheckCircle2, X, Plus, Minus } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface SellProps {
@@ -134,7 +135,7 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
     setIsSubmitting(true)
     try {
       for (const item of sizesToSell.filter(s => s.quantity > 0 && Number(s.sellingPriceUSD) > 0)) {
-        await recordSale(
+        const result = await recordSale(
           item.skuId,
           item.quantity,
           Number(item.sellingPriceUSD),
@@ -144,13 +145,17 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
           item.avgExchangeRate || exchangeRate,
           paymentMethod,
         )
+        if (result?.error) {
+          toast.error(result.error)
+          return
+        }
       }
       setSuccessSummary(summary)
       router.refresh()
       resetForm()
       onSuccess?.()
-    } catch (err) {
-      console.error(err)
+    } catch (err: any) {
+      toast.error(err?.message || 'Network error: Sale not recorded. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

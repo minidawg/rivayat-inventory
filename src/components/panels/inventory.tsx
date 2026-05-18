@@ -23,6 +23,7 @@ import {
   Trash2, X, Check, Loader2, AlertTriangle,
 } from 'lucide-react'
 import { exportAllData } from '@/lib/actions'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface InventoryProps {
@@ -362,10 +363,18 @@ function DeleteConfirm({ item, onCancel, onSuccess }: {
   async function handleDelete() {
     setLoading(true)
     try {
-      await deleteArticle(item.articleId)
-      router.refresh()
-      onSuccess?.()
-    } catch { setLoading(false); onCancel() }
+      const result = await deleteArticle(item.articleId)
+      if (result?.error) {
+        toast.error(result.error)
+        setLoading(false); onCancel()
+      } else {
+        router.refresh()
+        onSuccess?.()
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete article. Please try again.')
+      setLoading(false); onCancel()
+    }
   }
 
   return (
@@ -422,7 +431,10 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
       const updates: { name?: string; collection_id?: string } = {}
       if (articleName.trim() !== item.articleName) updates.name = articleName.trim()
       if (collectionId !== item.collectionId) updates.collection_id = collectionId
-      if (Object.keys(updates).length > 0) await updateArticle(item.articleId, updates)
+      if (Object.keys(updates).length > 0) {
+        const result = await updateArticle(item.articleId, updates)
+        if (result?.error) { setError(result.error); return }
+      }
 
       for (const [skuId, vals] of Object.entries(skuData)) {
         const orig = item.skus.find(s => s.skuId === skuId)
@@ -432,7 +444,10 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
         if (vals.qty !== orig.quantity) patch.quantity = vals.qty
         if (vals.buffer !== orig.lowStockBuffer) patch.lowStockBuffer = vals.buffer
         if (vals.cost !== orig.avgCostPKR) patch.avgCostPKR = vals.cost
-        if (Object.keys(patch).length > 0) await updateSku(skuId, patch)
+        if (Object.keys(patch).length > 0) {
+          const result = await updateSku(skuId, patch)
+          if (result?.error) { setError(result.error); return }
+        }
 
         if (vals.paidToWajid !== orig.paidToWajid) {
           await updateSkuPaidStatus(skuId, vals.paidToWajid)

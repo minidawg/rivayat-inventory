@@ -7,6 +7,7 @@ import { formatPKR, formatUSD, formatDate } from '@/lib/data'
 import { deleteSale } from '@/lib/actions'
 import type { SaleRow } from '@/lib/types'
 import { Download, Trash2, TrendingUp, TrendingDown, DollarSign, Calendar, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface SalesLogProps {
@@ -51,10 +52,14 @@ export function SalesLog({ sales, exchangeRate, onSuccess }: SalesLogProps) {
   const handleDelete = async (saleId: string) => {
     setDeletingId(saleId)
     try {
-      await deleteSale(saleId)
-      router.refresh(); onSuccess?.()
-    } catch (err) {
-      console.error(err)
+      const result = await deleteSale(saleId)
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        router.refresh(); onSuccess?.()
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete sale. Please try again.')
     } finally {
       setDeletingId(null); setConfirmId(null)
     }
