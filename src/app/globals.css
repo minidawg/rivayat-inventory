@@ -2,40 +2,40 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ─── Noir Gold (default) ────────────────────────────────────────────────────*/
+/* ─── Noir Gold (LIGHT — default) ───────────────────────────────────────────*/
 :root {
-  --background:         #0A0A0A;
-  --foreground:         #FAF8F5;
-  --card:               #141414;
-  --card-elevated:      #1C1C1C;
-  --card-foreground:    #FAF8F5;
-  --popover:            #1A1A1A;
-  --popover-foreground: #FAF8F5;
-  --primary:            #D4AF37;
-  --primary-foreground: #0A0A0A;
-  --secondary:          rgba(212,175,55,0.12);
-  --secondary-foreground:#E8DCC8;
-  --muted:              rgba(255,255,255,0.06);
-  --muted-foreground:   #9A8F82;
-  --accent:             #D4AF37;
-  --accent-foreground:  #0A0A0A;
+  --background:         #FAF9F6;
+  --foreground:         #1C1814;
+  --card:               #FFFFFF;
+  --card-elevated:      #F8F5EE;
+  --card-foreground:    #1C1814;
+  --popover:            #FFFFFF;
+  --popover-foreground: #1C1814;
+  --primary:            #B8941C;
+  --primary-foreground: #FFFFFF;
+  --secondary:          rgba(184,148,28,0.12);
+  --secondary-foreground:#5C4A0A;
+  --muted:              rgba(28,24,20,0.05);
+  --muted-foreground:   #7A6E62;
+  --accent:             #B8941C;
+  --accent-foreground:  #FFFFFF;
   --destructive:        #C44536;
   --destructive-foreground:#ffffff;
-  --success:            #4ADE80;
-  --success-foreground: #0A0A0A;
-  --border:             rgba(212,175,55,0.10);
-  --border-subtle:      rgba(255,255,255,0.06);
-  --input:              #111111;
-  --input-border:       rgba(255,255,255,0.10);
-  --ring:               #D4AF37;
-  --chart-1:            #D4AF37;
-  --chart-2:            #4ADE80;
+  --success:            #16A34A;
+  --success-foreground: #ffffff;
+  --border:             rgba(184,148,28,0.22);
+  --border-subtle:      rgba(28,24,20,0.10);
+  --input:              #F0EDE6;
+  --input-border:       rgba(28,24,20,0.18);
+  --ring:               #B8941C;
+  --chart-1:            #B8941C;
+  --chart-2:            #16A34A;
   --chart-3:            #C44536;
-  --chart-4:            #9A8F82;
-  --chart-5:            #F5F0E8;
+  --chart-4:            #7A6E62;
+  --chart-5:            #1C1814;
   --radius:             0.75rem;
-  --sidebar:            #0D0D0D;
-  --sidebar-foreground: #E8DCC8;
+  --sidebar:            #1A1714;
+  --sidebar-foreground: #EDE8DC;
   --sidebar-primary:    #D4AF37;
   --sidebar-primary-foreground:#0A0A0A;
   --sidebar-accent:     rgba(212,175,55,0.15);
@@ -44,21 +44,44 @@
   --sidebar-ring:       #D4AF37;
 }
 
-/* ─── Noir Amethyst override ─────────────────────────────────────────────────*/
+/* ─── Noir Amethyst (DARK) ───────────────────────────────────────────────────*/
 .theme-amethyst {
+  --background:         #0A0A0A;
+  --foreground:         #FAF8F5;
+  --card:               #141414;
+  --card-elevated:      #1C1C1C;
+  --card-foreground:    #FAF8F5;
+  --popover:            #1A1A1A;
+  --popover-foreground: #FAF8F5;
   --primary:            #B24BF3;
   --primary-foreground: #ffffff;
-  --accent:             #B24BF3;
-  --accent-foreground:  #ffffff;
   --secondary:          rgba(178,75,243,0.12);
   --secondary-foreground:#EDE8F5;
+  --muted:              rgba(255,255,255,0.06);
+  --muted-foreground:   #9A8F82;
+  --accent:             #B24BF3;
+  --accent-foreground:  #ffffff;
+  --destructive:        #C44536;
+  --destructive-foreground:#ffffff;
+  --success:            #4ADE80;
+  --success-foreground: #0A0A0A;
   --border:             rgba(178,75,243,0.12);
+  --border-subtle:      rgba(255,255,255,0.06);
+  --input:              #111111;
   --input-border:       rgba(178,75,243,0.20);
   --ring:               #B24BF3;
   --chart-1:            #B24BF3;
+  --chart-2:            #4ADE80;
+  --chart-3:            #C44536;
+  --chart-4:            #9A8F82;
+  --chart-5:            #F5F0E8;
+  --radius:             0.75rem;
+  --sidebar:            #0D0D0D;
+  --sidebar-foreground: #E8DCC8;
   --sidebar-primary:    #B24BF3;
   --sidebar-primary-foreground:#ffffff;
   --sidebar-accent:     rgba(178,75,243,0.15);
+  --sidebar-accent-foreground:#FAF8F5;
   --sidebar-border:     rgba(178,75,243,0.08);
   --sidebar-ring:       #B24BF3;
 }
@@ -112,22 +135,52 @@
   body { @apply bg-background text-foreground; }
 }
 
+/* ─── Light mode: override hardcoded dark card/input backgrounds ─────────── */
+html:not(.theme-amethyst) [class*="bg-[#141414]"],
+html:not(.theme-amethyst) [class*="bg-[#191919]"],
+html:not(.theme-amethyst) [class*="bg-[#1A1A1A]"],
+html:not(.theme-amethyst) [class*="bg-[#1a1a1a]"] {
+  background-color: var(--card) !important;
+}
+html:not(.theme-amethyst) [class*="bg-[#111]"],
+html:not(.theme-amethyst) [class*="bg-[#0D0D0D]"],
+html:not(.theme-amethyst) [class*="bg-[#0d0d0d]"] {
+  background-color: var(--input) !important;
+}
+/* White-opacity borders are invisible on light bg — flip to dark-opacity */
+html:not(.theme-amethyst) [class*="border-white/"],
+html:not(.theme-amethyst) [class*="border-[rgba(255,255,255,"] {
+  border-color: rgba(28,24,20,0.12) !important;
+}
+
 /* ─── Scrollbar ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width:6px; height:6px; }
 ::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:rgba(212,175,55,0.2); border-radius:3px; }
-::-webkit-scrollbar-thumb:hover { background:rgba(212,175,55,0.35); }
+::-webkit-scrollbar-thumb { background:rgba(184,148,28,0.25); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:rgba(184,148,28,0.40); }
 .theme-amethyst ::-webkit-scrollbar-thumb { background:rgba(178,75,243,0.2); }
 .theme-amethyst ::-webkit-scrollbar-thumb:hover { background:rgba(178,75,243,0.35); }
 
 /* ─── Glassmorphism ───────────────────────────────────────────────────────── */
 .glass {
-  background: rgba(20,20,20,0.80);
+  background: rgba(255,255,255,0.88);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
 }
 .glass-subtle {
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(28,24,20,0.08);
+}
+.theme-amethyst .glass {
+  background: rgba(20,20,20,0.80);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+}
+.theme-amethyst .glass-subtle {
   background: rgba(20,20,20,0.50);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -136,7 +189,7 @@
 
 /* ─── Gradient text ───────────────────────────────────────────────────────── */
 .gradient-text {
-  background: linear-gradient(135deg, #D4AF37 0%, #F5E6C3 50%, #D4AF37 100%);
+  background: linear-gradient(135deg, #B8941C 0%, #DEB84A 50%, #B8941C 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -154,7 +207,7 @@
   100% { background-position:  200% 0; }
 }
 .shimmer {
-  background: linear-gradient(90deg,rgba(212,175,55,0) 0%,rgba(212,175,55,0.12) 50%,rgba(212,175,55,0) 100%);
+  background: linear-gradient(90deg,rgba(184,148,28,0) 0%,rgba(184,148,28,0.18) 50%,rgba(184,148,28,0) 100%);
   background-size: 200% 100%;
   animation: shimmer 3s infinite;
 }
@@ -165,8 +218,8 @@
 }
 
 /* ─── Glow helpers ────────────────────────────────────────────────────────── */
-.glow-gold    { box-shadow: 0 0 30px rgba(212,175,55,0.15); }
-.glow-gold-sm { box-shadow: 0 0 15px rgba(212,175,55,0.10); }
+.glow-gold    { box-shadow: 0 0 30px rgba(184,148,28,0.18); }
+.glow-gold-sm { box-shadow: 0 0 15px rgba(184,148,28,0.12); }
 .theme-amethyst .glow-gold    { box-shadow: 0 0 30px rgba(178,75,243,0.18); }
 .theme-amethyst .glow-gold-sm { box-shadow: 0 0 15px rgba(178,75,243,0.12); }
 
@@ -174,7 +227,7 @@
 .premium-card { transition: all 0.35s cubic-bezier(0.4,0,0.2,1); }
 .premium-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.04);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.10), 0 0 0 1px rgba(184,148,28,0.22), inset 0 1px 0 rgba(255,255,255,0.70);
 }
 .theme-amethyst .premium-card:hover {
   box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(178,75,243,0.20), inset 0 1px 0 rgba(255,255,255,0.04);
@@ -182,8 +235,8 @@
 
 /* ─── Pulse ───────────────────────────────────────────────────────────────── */
 @keyframes pulse-gold {
-  0%,100% { box-shadow: 0 0 0 0 rgba(212,175,55,0.4); }
-  50%     { box-shadow: 0 0 0 8px rgba(212,175,55,0); }
+  0%,100% { box-shadow: 0 0 0 0 rgba(184,148,28,0.35); }
+  50%     { box-shadow: 0 0 0 8px rgba(184,148,28,0); }
 }
 @keyframes pulse-amethyst {
   0%,100% { box-shadow: 0 0 0 0 rgba(178,75,243,0.4); }
@@ -198,6 +251,11 @@
   100% { background-position:  400px 0; }
 }
 .skeleton {
+  background: linear-gradient(90deg, #E8E2D8 25%, #F0EAE0 50%, #E8E2D8 75%);
+  background-size: 800px 100%;
+  animation: skeleton-wave 1.6s ease-in-out infinite;
+}
+.theme-amethyst .skeleton {
   background: linear-gradient(90deg, #1A1A1A 25%, #222 50%, #1A1A1A 75%);
   background-size: 800px 100%;
   animation: skeleton-wave 1.6s ease-in-out infinite;

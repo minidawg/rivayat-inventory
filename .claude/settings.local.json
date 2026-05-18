@@ -24,6 +24,9 @@
       "Read(//c/Users/syed.hamza/.config/vercel/**)",
       "Bash(git checkout *)",
       "Bash(npx tsc *)",
+      "Bash(\"D:/Hamza/Self/Development/Node JS/node-v24.15.0-win-x64/node.exe\" node_modules/.bin/tsc --noEmit)",
+      "Bash(\"D:/Hamza/Self/Development/Node JS/node-v24.15.0-win-x64/node.exe\" node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(git merge *)",
       "Bash(git commit *)",
       "Bash(git pull *)"
     ]

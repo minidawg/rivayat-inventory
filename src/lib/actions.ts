@@ -15,6 +15,7 @@ export async function stockIn(
   exchangeRate: number,
   source: string,
   notes: string,
+  paidToWajid: boolean,
 ): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
@@ -87,6 +88,7 @@ export async function stockIn(
         exchange_rate: exchangeRate,
         source: source || null,
         notes: notes || null,
+        paid_to_wajid: paidToWajid,
       })
       if (error) throw error
     }
@@ -111,6 +113,7 @@ export async function recordSale(
   clientName: string,
   avgCostPKR: number,
   exchangeRate: number,
+  paymentMethod: string,
 ): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
@@ -136,6 +139,7 @@ export async function recordSale(
       exchange_rate_at_sale: exchangeRate,
       channel: channel || null,
       client_name: clientName || null,
+      payment_method: paymentMethod || null,
     })
     if (saleError) {
       return { error: `Network error: Sale not recorded. ${saleError.message}` }
@@ -357,6 +361,44 @@ export async function clearAllData(): Promise<{ error?: string }> {
     return {}
   } catch (e: any) {
     return { error: e?.message || 'Failed to clear data.' }
+  }
+}
+
+// ─── Paid to Wajid ────────────────────────────────────────────────────────────
+
+export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean) {
+  const client = await getSupabaseServerClient()
+  const { error } = await client
+    .from('purchases')
+    .update({ paid_to_wajid: paidToWajid })
+    .eq('sku_id', skuId)
+  if (error) throw error
+}
+
+// ─── Emergency Full Backup Export ────────────────────────────────────────────
+
+export async function exportAllData() {
+  const client = await getSupabaseServerClient()
+
+  const [{ data: articles }, { data: purchases }, { data: sales }] = await Promise.all([
+    client
+      .from('articles')
+      .select('name, collections(name, brands(name)), skus(size, quantity, avg_cost_pkr, avg_exchange_rate)')
+      .order('name'),
+    client
+      .from('purchases')
+      .select('created_at, quantity, cost_pkr, commission_pkr, shipping_pkr, exchange_rate, source, notes, paid_to_wajid, skus(size, articles(name, collections(name, brands(name))))')
+      .order('created_at', { ascending: false }),
+    client
+      .from('sales')
+      .select('created_at, quantity, selling_price, cost_pkr_at_sale, exchange_rate_at_sale, channel, client_name, payment_method, skus(size, articles(name, collections(brands(name))))')
+      .order('created_at', { ascending: false }),
+  ])
+
+  return {
+    articles: (articles ?? []) as any[],
+    purchases: (purchases ?? []) as any[],
+    sales: (sales ?? []) as any[],
   }
 }
 
