@@ -20,6 +20,7 @@ create table articles (
   id            uuid primary key default gen_random_uuid(),
   name          text not null,
   collection_id uuid not null references collections (id) on delete cascade,
+  image_url     text,
   unique (collection_id, name)
 );
 
@@ -46,7 +47,8 @@ create table purchases (
   shipping_pkr   numeric   not null default 0,
   exchange_rate  numeric   not null,
   source         text      check (source in ('prebook', 'released')),
-  notes          text
+  notes          text,
+  paid_to_wajid  boolean   not null default false
 );
 
 -- ─── Sales ────────────────────────────────────────────────────────────────────
@@ -59,7 +61,8 @@ create table sales (
   cost_pkr_at_sale     numeric,
   exchange_rate_at_sale numeric,
   channel              text      check (channel in ('Instagram','Walk-in','WhatsApp','Facebook','Website','TikTok')),
-  client_name          text
+  client_name          text,
+  payment_method       text
 );
 
 -- ─── Settings ─────────────────────────────────────────────────────────────────
