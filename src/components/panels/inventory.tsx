@@ -15,13 +15,16 @@ import {
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { formatPKR, formatUSD, suggestedSellPrice } from '@/lib/data'
-import { updateSku, updateArticle, deleteArticle, updateSkuPaidStatus } from '@/lib/actions'
+import {
+  updateSku, updateArticle, deleteArticle, updateSkuPaidStatus,
+  deleteSku, addSku, deleteArticleImage, uploadArticleImage,
+} from '@/lib/actions'
 import { SIZES } from '@/lib/types'
 import type { ArticleInventory, BrandWithCollections } from '@/lib/types'
 import Image from 'next/image'
 import {
   Download, Edit, ChevronDown, ChevronUp, Package, Search, Filter,
-  Trash2, X, Check, Loader2, AlertTriangle,
+  Trash2, X, Check, Loader2, AlertTriangle, RotateCcw, Plus,
 } from 'lucide-react'
 import { exportAllData } from '@/lib/actions'
 import { toast } from 'sonner'
@@ -347,7 +350,7 @@ function InventoryCard({
 
       {/* Edit Modal */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-2xl bg-card border-border">
+        <DialogContent className="max-w-3xl bg-card border-border">
           <DialogHeader>
             <DialogTitle>Edit: {item.articleName}</DialogTitle>
             <DialogDescription>{item.brandName} · {item.collectionName}</DialogDescription>
@@ -412,6 +415,17 @@ function DeleteConfirm({ item, onCancel, onSuccess }: {
 
 // ─── Edit Modal (inside Dialog) ───────────────────────────────────────────────
 
+interface SkuEditRow {
+  id: string           // local React key
+  skuId?: string       // undefined = newly added, not yet in DB
+  size: string
+  qty: number
+  buffer: number
+  cost: number
+  paidToWajid: boolean
+  isDeleted: boolean
+}
+
 function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
   item: ArticleInventory
   brands: BrandWithCollections[]
@@ -420,52 +434,138 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
   onSuccess?: () => void
 }) {
   const router = useRouter()
+
   const [articleName,   setArticleName]   = useState(item.articleName)
   const [collectionId,  setCollectionId]  = useState(item.collectionId)
   const [selectedBrand, setSelectedBrand] = useState(item.brandId)
-  const [skuData, setSkuData] = useState<Record<string, { qty: number; buffer: number; cost: number; paidToWajid: boolean }>>(
-    Object.fromEntries(item.skus.map(s => [s.skuId, {
-      qty: s.quantity,
-      buffer: s.lowStockBuffer,
-      cost: s.avgCostPKR,
-      paidToWajid: s.paidToWajid,
-    }]))
+
+  // Image state
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(item.imageUrl)
+  const [imageAction,     setImageAction]     = useState<'none' | 'upload' | 'delete'>('none')
+  const [imageFile,       setImageFile]       = useState<File | null>(null)
+  const [imagePreview,    setImagePreview]    = useState<string | null>(null)
+
+  // SKU rows
+  const [skuRows,    setSkuRows]    = useState<SkuEditRow[]>(
+    item.skus.map(s => ({
+      id: s.skuId, skuId: s.skuId,
+      size: s.size, qty: s.quantity, buffer: s.lowStockBuffer,
+      cost: s.avgCostPKR, paidToWajid: s.paidToWajid, isDeleted: false,
+    }))
   )
+  const [nextTempId, setNextTempId] = useState(0)
+
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState('')
 
-  const collections = brands.find(b => b.id === selectedBrand)?.collections ?? []
+  const collections    = brands.find(b => b.id === selectedBrand)?.collections ?? []
+  const activeRows     = skuRows.filter(r => !r.isDeleted)
+  const deletedExisting = skuRows.filter(r => r.isDeleted && r.skuId)
 
-  const inputClass = 'flex h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20'
   const selectClass = 'flex h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:border-primary/50 focus:outline-none'
+
+  // ── Image handlers ────────────────────────────────────────────────────────
+
+  function handleImageFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    if (!file) return
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    const preview = URL.createObjectURL(file)
+    setImageFile(file); setImagePreview(preview)
+    setCurrentImageUrl(preview); setImageAction('upload')
+  }
+
+  function handleDeleteImage() {
+    setCurrentImageUrl(null); setImageAction('delete')
+    if (imagePreview) { URL.revokeObjectURL(imagePreview); setImagePreview(null) }
+    setImageFile(null)
+  }
+
+  function handleUndoDeleteImage() {
+    setCurrentImageUrl(item.imageUrl); setImageAction('none')
+  }
+
+  // ── SKU row handlers ──────────────────────────────────────────────────────
+
+  function updateRow(id: string, field: keyof SkuEditRow, value: unknown) {
+    setSkuRows(rows => rows.map(r => r.id === id ? { ...r, [field]: value } : r))
+  }
+
+  function toggleDeleted(id: string) {
+    setSkuRows(rows => rows.map(r => r.id === id ? { ...r, isDeleted: !r.isDeleted } : r))
+  }
+
+  function addRow() {
+    const tempId = `temp-${nextTempId}`
+    setNextTempId(n => n + 1)
+    setSkuRows(rows => [...rows, {
+      id: tempId, skuId: undefined,
+      size: 'M', qty: 0, buffer: 2, cost: 0, paidToWajid: true, isDeleted: false,
+    }])
+  }
+
+  function removeNewRow(id: string) {
+    setSkuRows(rows => rows.filter(r => r.id !== id))
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
 
   async function handleSave() {
     if (!articleName.trim()) { setError('Article name required'); return }
+    if (activeRows.length === 0) { setError('At least one size variant is required.'); return }
     setSaving(true); setError('')
+
     try {
-      const updates: { name?: string; collection_id?: string } = {}
-      if (articleName.trim() !== item.articleName) updates.name = articleName.trim()
-      if (collectionId !== item.collectionId) updates.collection_id = collectionId
-      if (Object.keys(updates).length > 0) {
-        const result = await updateArticle(item.articleId, updates)
-        if (result?.error) { setError(result.error); return }
+      // 1. Article name / collection
+      const articleUpdates: { name?: string; collection_id?: string } = {}
+      if (articleName.trim() !== item.articleName) articleUpdates.name = articleName.trim()
+      if (collectionId !== item.collectionId) articleUpdates.collection_id = collectionId
+      if (Object.keys(articleUpdates).length > 0) {
+        const r = await updateArticle(item.articleId, articleUpdates)
+        if (r?.error) { setError(r.error); return }
       }
 
-      for (const [skuId, vals] of Object.entries(skuData)) {
-        const orig = item.skus.find(s => s.skuId === skuId)
-        if (!orig) continue
+      // 2. Image
+      if (imageAction === 'delete' && item.imageUrl) {
+        const r = await deleteArticleImage(item.articleId, item.imageUrl)
+        if (r?.error) { setError(r.error); return }
+      } else if (imageAction === 'upload' && imageFile) {
+        const fd = new FormData()
+        fd.append('file', imageFile)
+        const { url, error: uploadError } = await uploadArticleImage(fd)
+        if (uploadError) { setError(`Image upload failed: ${uploadError}`); return }
+        const r = await updateArticle(item.articleId, { image_url: url! })
+        if (r?.error) { setError(r.error); return }
+      }
 
-        const patch: { quantity?: number; lowStockBuffer?: number; avgCostPKR?: number } = {}
-        if (vals.qty !== orig.quantity) patch.quantity = vals.qty
-        if (vals.buffer !== orig.lowStockBuffer) patch.lowStockBuffer = vals.buffer
-        if (vals.cost !== orig.avgCostPKR) patch.avgCostPKR = vals.cost
-        if (Object.keys(patch).length > 0) {
-          const result = await updateSku(skuId, patch)
-          if (result?.error) { setError(result.error); return }
-        }
+      // 3. Delete marked variants (cascades purchases + sales)
+      for (const row of deletedExisting) {
+        const r = await deleteSku(row.skuId!)
+        if (r?.error) { setError(r.error); return }
+      }
 
-        if (vals.paidToWajid !== orig.paidToWajid) {
-          await updateSkuPaidStatus(skuId, vals.paidToWajid)
+      // 4. Upsert active rows
+      for (const row of activeRows) {
+        if (!row.skuId) {
+          // New variant
+          const r = await addSku(item.articleId, row.size, row.qty, row.buffer, row.cost, exchangeRate)
+          if (r?.error) { setError(r.error); return }
+        } else {
+          // Existing variant — diff patch
+          const orig = item.skus.find(s => s.skuId === row.skuId)
+          if (!orig) continue
+          const patch: Parameters<typeof updateSku>[1] = {}
+          if (row.size   !== orig.size)             patch.size           = row.size
+          if (row.qty    !== orig.quantity)          patch.quantity       = row.qty
+          if (row.buffer !== orig.lowStockBuffer)    patch.lowStockBuffer = row.buffer
+          if (row.cost   !== orig.avgCostPKR)        patch.avgCostPKR     = row.cost
+          if (Object.keys(patch).length > 0) {
+            const r = await updateSku(row.skuId, patch)
+            if (r?.error) { setError(r.error); return }
+          }
+          if (row.paidToWajid !== orig.paidToWajid) {
+            await updateSkuPaidStatus(row.skuId, row.paidToWajid)
+          }
         }
       }
 
@@ -478,103 +578,192 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
   }
 
   return (
-    <div className="space-y-5">
-      {error && (
-        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
-          {error}
+    <>
+      <div className="space-y-5 max-h-[62vh] overflow-y-auto pr-1">
+        {error && (
+          <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+            {error}
+          </div>
+        )}
+
+        {/* ── Image ── */}
+        <div className="space-y-2">
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Product Image</Label>
+
+          {imageAction === 'delete' ? (
+            <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5">
+              <span className="text-xs text-destructive">Image will be removed on save.</span>
+              <button type="button" onClick={handleUndoDeleteImage}
+                className="ml-auto text-xs underline text-muted-foreground hover:text-foreground">
+                Undo
+              </button>
+            </div>
+          ) : currentImageUrl ? (
+            <div className="flex items-start gap-3">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={currentImageUrl} alt="Product" className="h-full w-full object-cover" />
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
+                <button type="button" onClick={handleDeleteImage}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/25 bg-destructive/8 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/15 transition-all">
+                  <Trash2 className="h-3 w-3" /> Delete Picture
+                </button>
+                <label className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.06] cursor-pointer transition-all">
+                  <input type="file" accept="image/*" onChange={handleImageFileChange} className="sr-only" />
+                  Replace Image
+                </label>
+              </div>
+            </div>
+          ) : (
+            <label className="flex items-center justify-center gap-2 h-11 rounded-xl border border-dashed border-white/15 bg-[#111] px-4 text-sm text-muted-foreground cursor-pointer hover:border-primary/30 hover:text-foreground transition-all">
+              <input type="file" accept="image/*" onChange={handleImageFileChange} className="sr-only" />
+              {imageFile ? imageFile.name : 'Upload image…'}
+            </label>
+          )}
         </div>
-      )}
 
-      {/* Article name */}
-      <div className="space-y-1.5">
-        <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Article Name</Label>
-        <Input value={articleName} onChange={e => setArticleName(e.target.value)}
-          className="h-10 bg-input border-border focus:border-primary/50" />
-      </div>
-
-      {/* Brand + Collection */}
-      <div className="grid grid-cols-2 gap-4">
+        {/* ── Article name ── */}
         <div className="space-y-1.5">
-          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Brand</Label>
-          <select value={selectedBrand}
-            onChange={e => { setSelectedBrand(e.target.value); setCollectionId('') }}
-            className={selectClass}>
-            {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </select>
+          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Article Name</Label>
+          <Input value={articleName} onChange={e => setArticleName(e.target.value)}
+            className="h-10 bg-input border-border focus:border-primary/50" />
         </div>
-        <div className="space-y-1.5">
-          <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Collection</Label>
-          <select value={collectionId} onChange={e => setCollectionId(e.target.value)} className={selectClass}>
-            <option value="">— select —</option>
-            {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-      </div>
 
-      {/* Per-SKU table */}
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Variants — Qty / Buffer / Cost / Paid to Wajid
+        {/* ── Brand + Collection ── */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Brand</Label>
+            <select value={selectedBrand}
+              onChange={e => { setSelectedBrand(e.target.value); setCollectionId('') }}
+              className={selectClass}>
+              {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Collection</Label>
+            <select value={collectionId} onChange={e => setCollectionId(e.target.value)} className={selectClass}>
+              <option value="">— select —</option>
+              {collections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
         </div>
-        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-          {item.skus.map(s => {
-            const d = skuData[s.skuId] ?? { qty: s.quantity, buffer: s.lowStockBuffer, cost: s.avgCostPKR, paidToWajid: s.paidToWajid }
-            return (
-              <div key={s.skuId}
-                className="grid grid-cols-[48px_1fr_1fr_1fr_auto] items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2.5">
-                <span className="text-sm font-bold text-muted-foreground">{s.size}</span>
 
+        {/* ── Variants ── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Variants — Size / Qty / Buffer / Cost PKR / Paid
+            </div>
+            {deletedExisting.length > 0 && (
+              <span className="text-[10px] font-medium text-destructive">
+                {deletedExisting.length} variant{deletedExisting.length > 1 ? 's' : ''} flagged for deletion
+                {' '}(cascades purchases &amp; sales)
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+            {skuRows.map(row => (
+              <div key={row.id} className={cn(
+                'grid grid-cols-[72px_1fr_1fr_1fr_auto_auto] items-center gap-2 rounded-xl border px-3 py-2.5 transition-all',
+                row.isDeleted
+                  ? 'border-destructive/20 bg-destructive/5 opacity-55'
+                  : 'border-border bg-muted/40',
+              )}>
+                {/* Size */}
+                <div>
+                  <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Size</div>
+                  <select value={row.size} disabled={row.isDeleted}
+                    onChange={e => updateRow(row.id, 'size', e.target.value)}
+                    className="flex h-8 w-full rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary/50 focus:outline-none disabled:opacity-40">
+                    {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                {/* Qty */}
                 <div>
                   <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Qty</div>
-                  <Input type="number" min="0" value={d.qty}
-                    onChange={e => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, qty: Number(e.target.value) } }))}
-                    className="h-8 bg-input border-border focus:border-primary/50 text-xs" />
+                  <Input type="number" min="0" value={row.qty} disabled={row.isDeleted}
+                    onChange={e => updateRow(row.id, 'qty', Number(e.target.value))}
+                    className="h-8 bg-input border-border focus:border-primary/50 text-xs disabled:opacity-40" />
                 </div>
 
+                {/* Buffer */}
                 <div>
                   <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Buffer</div>
-                  <Input type="number" min="0" value={d.buffer}
-                    onChange={e => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, buffer: Number(e.target.value) } }))}
-                    className="h-8 bg-input border-border focus:border-primary/50 text-xs" />
+                  <Input type="number" min="0" value={row.buffer} disabled={row.isDeleted}
+                    onChange={e => updateRow(row.id, 'buffer', Number(e.target.value))}
+                    className="h-8 bg-input border-border focus:border-primary/50 text-xs disabled:opacity-40" />
                 </div>
 
+                {/* Cost */}
                 <div>
                   <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Cost PKR</div>
-                  <Input type="number" min="0" value={d.cost}
-                    onChange={e => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, cost: Number(e.target.value) } }))}
-                    className="h-8 bg-input border-border focus:border-primary/50 text-xs" />
+                  <Input type="number" min="0" value={row.cost} disabled={row.isDeleted}
+                    onChange={e => updateRow(row.id, 'cost', Number(e.target.value))}
+                    className="h-8 bg-input border-border focus:border-primary/50 text-xs disabled:opacity-40" />
                 </div>
 
+                {/* Paid toggle */}
                 <div className="text-center">
                   <div className="text-[9px] text-muted-foreground mb-1.5 uppercase tracking-wider whitespace-nowrap">Paid</div>
-                  <button
-                    onClick={() => setSkuData(prev => ({ ...prev, [s.skuId]: { ...d, paidToWajid: !d.paidToWajid } }))}
+                  <button type="button" disabled={row.isDeleted}
+                    onClick={() => updateRow(row.id, 'paidToWajid', !row.paidToWajid)}
                     className={cn(
-                      'flex h-7 w-7 items-center justify-center rounded-lg border transition-all',
-                      d.paidToWajid
+                      'flex h-7 w-7 items-center justify-center rounded-lg border transition-all disabled:opacity-40',
+                      row.paidToWajid
                         ? 'bg-success/15 border-success/30 text-success'
                         : 'bg-amber-500/10 border-amber-500/30 text-amber-500',
-                    )}
-                    title={d.paidToWajid ? 'Paid — click to mark unpaid' : 'Unpaid — click to mark paid'}
-                  >
-                    {d.paidToWajid ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                    )}>
+                    {row.paidToWajid ? <Check className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+
+                {/* Delete / Undo / Remove */}
+                <div className="text-center">
+                  <div className="text-[9px] text-muted-foreground mb-1.5 invisible">·</div>
+                  {row.isDeleted ? (
+                    <button type="button" onClick={() => toggleDeleted(row.id)}
+                      title="Undo deletion"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-success/30 bg-success/10 text-success hover:bg-success/20 transition-all">
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </button>
+                  ) : row.skuId ? (
+                    <button type="button" onClick={() => toggleDeleted(row.id)}
+                      title="Mark for deletion"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-muted-foreground hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive transition-all">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => removeNewRow(row.id)}
+                      title="Remove new row"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] text-muted-foreground hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive transition-all">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-            )
-          })}
+            ))}
+          </div>
+
+          <button type="button" onClick={addRow}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-success/20 bg-success/8 px-4 py-2 text-sm font-medium text-success transition-all hover:bg-success/15 hover:border-success/30">
+            <Plus className="h-3.5 w-3.5" /> Add Size
+          </button>
         </div>
       </div>
 
-      <DialogFooter className="pt-2">
+      <DialogFooter className="pt-4 border-t border-white/5 mt-2">
         <Button variant="outline" onClick={onClose} className="border-border bg-transparent hover:bg-muted/40">
           <X className="h-3.5 w-3.5 mr-1.5" /> Cancel
         </Button>
-        <Button onClick={handleSave} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button onClick={handleSave} disabled={saving || activeRows.length === 0}
+          className="bg-primary text-primary-foreground hover:bg-primary/90">
           {saving ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
           Save Changes
         </Button>
       </DialogFooter>
-    </div>
+    </>
   )
 }

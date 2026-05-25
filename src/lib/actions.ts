@@ -313,16 +313,20 @@ export async function updateSKUQuantity(skuId: string, quantity: number): Promis
 
 export async function updateSku(
   skuId: string,
-  updates: { quantity?: number; lowStockBuffer?: number; avgCostPKR?: number },
+  updates: { quantity?: number; lowStockBuffer?: number; avgCostPKR?: number; size?: string },
 ): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
     const { error } = await client.from('skus').update({
-      ...(updates.quantity !== undefined       && { quantity:          updates.quantity }),
+      ...(updates.size !== undefined            && { size:             updates.size }),
+      ...(updates.quantity !== undefined        && { quantity:         updates.quantity }),
       ...(updates.lowStockBuffer !== undefined  && { low_stock_buffer: updates.lowStockBuffer }),
-      ...(updates.avgCostPKR !== undefined     && { avg_cost_pkr:      updates.avgCostPKR }),
+      ...(updates.avgCostPKR !== undefined      && { avg_cost_pkr:     updates.avgCostPKR }),
     }).eq('id', skuId)
-    if (error) throw error
+    if (error) {
+      console.error('[updateSku] failed:', error)
+      throw new Error(error.message)
+    }
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -330,9 +334,91 @@ export async function updateSku(
   }
 }
 
+export async function deleteSku(skuId: string): Promise<{ error?: string }> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { error } = await client.from('skus').delete().eq('id', skuId)
+    if (error) {
+      console.error('[deleteSku] failed:', error)
+      throw new Error(error.message)
+    }
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to delete size variant.' }
+  }
+}
+
+export async function addSku(
+  articleId: string,
+  size: string,
+  quantity: number,
+  lowStockBuffer: number,
+  avgCostPKR: number,
+  avgExchangeRate: number,
+): Promise<{ error?: string }> {
+  const VALID_SIZES = ['XS','S','M','L','XL','XXL','XXXL','34','36','38','40','42','44','46']
+  if (!VALID_SIZES.includes(size)) return { error: `Invalid size: ${size}` }
+  if (quantity < 0)       return { error: 'Quantity cannot be negative.' }
+  if (lowStockBuffer < 0) return { error: 'Buffer cannot be negative.' }
+
+  try {
+    const client = await getSupabaseServerClient()
+    const { error } = await client.from('skus').insert({
+      article_id: articleId,
+      size,
+      quantity,
+      low_stock_buffer: lowStockBuffer,
+      avg_cost_pkr: avgCostPKR,
+      avg_exchange_rate: avgExchangeRate,
+    })
+    if (error) {
+      console.error('[addSku] failed:', error)
+      throw new Error(error.message)
+    }
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to add size variant.' }
+  }
+}
+
+export async function deleteArticleImage(
+  articleId: string,
+  storageUrl: string,
+): Promise<{ error?: string }> {
+  try {
+    const client = await getSupabaseServerClient()
+
+    // Extract path safely — only delete from the product-images bucket, articles/ prefix
+    const BUCKET_MARKER = '/product-images/'
+    const markerIndex = storageUrl.indexOf(BUCKET_MARKER)
+    if (markerIndex !== -1) {
+      const storagePath = storageUrl.slice(markerIndex + BUCKET_MARKER.length)
+      if (storagePath.startsWith('articles/')) {
+        const { error: storageError } = await client.storage
+          .from('product-images')
+          .remove([storagePath])
+        if (storageError) console.error('[deleteArticleImage] storage.remove failed:', storageError)
+      }
+    }
+
+    const { error } = await client.from('articles').update({ image_url: null }).eq('id', articleId)
+    if (error) {
+      console.error('[deleteArticleImage] db update failed:', error)
+      throw new Error(error.message)
+    }
+
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to delete image.' }
+  }
+}
+
 export async function updateArticle(
   articleId: string,
-  updates: { name?: string; collection_id?: string },
+  updates: { name?: string; collection_id?: string; image_url?: string | null },
 ): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
