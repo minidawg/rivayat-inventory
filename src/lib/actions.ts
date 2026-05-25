@@ -546,6 +546,33 @@ export async function exportAllData() {
   }
 }
 
+// ─── Overheads ───────────────────────────────────────────────────────────────
+
+export async function recordCost(
+  category: string,
+  amount: number,
+  expenseDate: string,
+  notes: string,
+): Promise<{ error?: string }> {
+  try {
+    if (!category) return { error: 'Category is required.' }
+    if (!amount || amount <= 0) return { error: 'Amount must be greater than 0.' }
+    if (!expenseDate) return { error: 'Date is required.' }
+    const client = await getSupabaseServerClient()
+    const { error } = await client.from('overheads').insert({
+      category,
+      amount,
+      expense_date: expenseDate,
+      notes: notes.trim() || null,
+    })
+    if (error) throw error
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to record cost.' }
+  }
+}
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function updateSetting(key: string, value: string): Promise<{ error?: string }> {

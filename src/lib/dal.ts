@@ -207,6 +207,19 @@ export async function getPurchases(): Promise<PurchaseRow[]> {
   }
 }
 
+// ─── Overheads ───────────────────────────────────────────────────────────────
+
+export async function getTotalOverheads(): Promise<number> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { data } = await client.from('overheads').select('amount')
+    if (!data) return 0
+    return (data as any[]).reduce((s: number, x: any) => s + (Number(x.amount) || 0), 0)
+  } catch {
+    return 0
+  }
+}
+
 // ─── Brands ───────────────────────────────────────────────────────────────────
 
 export async function getBrands(): Promise<BrandWithCollections[]> {

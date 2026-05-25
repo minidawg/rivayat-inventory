@@ -45,6 +45,12 @@ export type Database = {
         Update: { key?: string; value?: string }
         Relationships: []
       }
+      overheads: {
+        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null }
+        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null }
+        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -69,6 +75,14 @@ export type Channel = typeof CHANNELS[number]
 
 export const PAYMENT_METHODS = ['Zelle', 'Cash'] as const
 export type PaymentMethod = typeof PAYMENT_METHODS[number]
+
+export const OVERHEAD_CATEGORIES = [
+  'Exhibition Rent',
+  'Deliveries (Pak to US)',
+  'Supplies',
+  'Miscellaneous',
+] as const
+export type OverheadCategory = typeof OVERHEAD_CATEGORIES[number]
 
 // ─── View types (returned by DAL, camelCase) ─────────────────────────────────
 
@@ -137,6 +151,15 @@ export interface ArticleInventory {
     /** false if any purchase for this SKU has paid_to_wajid = false */
     paidToWajid: boolean
   }[]
+}
+
+export interface OverheadRow {
+  id: string
+  createdAt: string
+  category: OverheadCategory
+  amount: number
+  expenseDate: string
+  notes: string | null
 }
 
 export interface BrandWithCollections {

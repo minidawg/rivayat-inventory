@@ -9,7 +9,7 @@ import {
 } from 'recharts'
 import {
   TrendingUp, TrendingDown, Package, DollarSign, ShoppingBag,
-  AlertTriangle, Sparkles, Crown, BarChart2, Users, ArrowUpRight, ChevronDown,
+  AlertTriangle, Sparkles, Crown, BarChart2, Users, ArrowUpRight, ChevronDown, Receipt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +19,7 @@ interface DashboardProps {
   purchases: PurchaseRow[]
   exchangeRate: number
   lowStockAlertsEnabled: boolean
+  totalOverheadsUSD: number
 }
 
 function TrendBadge({ pct }: { pct: number | null }) {
@@ -37,7 +38,7 @@ function TrendBadge({ pct }: { pct: number | null }) {
 
 const BRAND_COLORS = ['#D4AF37', '#4ADE80', '#F59E0B', '#818CF8', '#EC4899', '#34D399']
 
-export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlertsEnabled }: DashboardProps) {
+export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlertsEnabled, totalOverheadsUSD }: DashboardProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
 
   // ── Core metrics ─────────────────────────────────────────────────────────────
@@ -53,17 +54,20 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
       const rate = x.exchangeRateAtSale || exchangeRate
       return s + (x.costPKRAtSale || 0) / rate * x.quantity
     }, 0)
-    const totalProfitUSD  = totalRevenueUSD - totalCostUSD
-    const profitMargin    = totalRevenueUSD > 0 ? (totalProfitUSD / totalRevenueUSD) * 100 : 0
-    const avgOrderUSD     = sales.length > 0 ? totalRevenueUSD / sales.length : 0
+    const totalProfitUSD    = totalRevenueUSD - totalCostUSD
+    const trueNetProfitUSD  = totalProfitUSD - totalOverheadsUSD
+    const profitMargin      = totalRevenueUSD > 0 ? (totalProfitUSD / totalRevenueUSD) * 100 : 0
+    const trueMargin        = totalRevenueUSD > 0 ? (trueNetProfitUSD / totalRevenueUSD) * 100 : 0
+    const avgOrderUSD       = sales.length > 0 ? totalRevenueUSD / sales.length : 0
 
     return {
       totalItems, lowStockItems, outOfStock,
       inventoryValuePKR, inventoryValueUSD: inventoryValuePKR / exchangeRate,
-      totalRevenueUSD, totalCostUSD, totalProfitUSD, profitMargin,
+      totalRevenueUSD, totalCostUSD, totalProfitUSD, trueNetProfitUSD,
+      profitMargin, trueMargin,
       salesCount: sales.length, avgOrderUSD,
     }
-  }, [skus, sales, exchangeRate])
+  }, [skus, sales, exchangeRate, totalOverheadsUSD])
 
   // ── Monthly trend (current vs previous month) ─────────────────────────────
   const trends = useMemo(() => {
@@ -184,14 +188,36 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
     },
     {
       id: 'profit',
-      label: 'Net Profit',
+      label: 'Gross Profit',
       value: formatUSD(stats.totalProfitUSD),
-      sub: `${stats.profitMargin.toFixed(1)}% margin`,
+      sub: `${stats.profitMargin.toFixed(1)}% margin (pre-overhead)`,
       icon: TrendingUp,
       iconBg: 'bg-success/15',
       iconColor: 'text-success',
       trend: trends.profTrend,
       warn: false,
+    },
+    {
+      id: 'overheads',
+      label: 'Total Overheads',
+      value: formatUSD(totalOverheadsUSD),
+      sub: 'rent · shipping · supplies',
+      icon: Receipt,
+      iconBg: 'bg-destructive/15',
+      iconColor: 'text-destructive',
+      trend: null,
+      warn: false,
+    },
+    {
+      id: 'truenet',
+      label: 'True Net Profit',
+      value: formatUSD(stats.trueNetProfitUSD),
+      sub: `${stats.trueMargin.toFixed(1)}% net margin`,
+      icon: TrendingUp,
+      iconBg: stats.trueNetProfitUSD >= 0 ? 'bg-success/15' : 'bg-destructive/15',
+      iconColor: stats.trueNetProfitUSD >= 0 ? 'text-success' : 'text-destructive',
+      trend: null,
+      warn: stats.trueNetProfitUSD < 0,
     },
     {
       id: 'sales',
