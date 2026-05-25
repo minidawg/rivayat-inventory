@@ -28,6 +28,28 @@ export async function requireAuth() {
 // ─── Settings ────────────────────────────────────────────────────────────────
 
 export async function getExchangeRate(): Promise<number> {
+  const apiKey = process.env.EXCHANGE_RATE_API_KEY
+  if (apiKey) {
+    try {
+      const res = await fetch(
+        `https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`,
+        { next: { revalidate: 86400 } },
+      )
+      if (res.ok) {
+        const json = await res.json()
+        const rate = json?.conversion_rates?.PKR
+        if (typeof rate === 'number' && rate > 0) {
+          const client = await getSupabaseServerClient()
+          await client
+            .from('settings')
+            .upsert({ key: 'usd_rate', value: String(Math.round(rate)) }, { onConflict: 'key' })
+          return rate
+        }
+      }
+    } catch {
+      // fall through to DB
+    }
+  }
   try {
     const client = await getSupabaseServerClient()
     const { data } = await client
@@ -38,6 +60,21 @@ export async function getExchangeRate(): Promise<number> {
     return Number(data?.value) || DEFAULT_PKR_TO_USD
   } catch {
     return DEFAULT_PKR_TO_USD
+  }
+}
+
+export async function getSettings(): Promise<{ lowStockAlerts: boolean; usdRate: number }> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { data } = await client.from('settings').select('key, value')
+    const map: Record<string, string> = {}
+    for (const row of data ?? []) map[row.key] = row.value
+    return {
+      lowStockAlerts: map['low_stock_alerts'] !== 'false',
+      usdRate: Number(map['usd_rate']) || DEFAULT_PKR_TO_USD,
+    }
+  } catch {
+    return { lowStockAlerts: true, usdRate: DEFAULT_PKR_TO_USD }
   }
 }
 

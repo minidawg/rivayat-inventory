@@ -18,6 +18,7 @@ interface DashboardProps {
   sales: SaleRow[]
   purchases: PurchaseRow[]
   exchangeRate: number
+  lowStockAlertsEnabled: boolean
 }
 
 function TrendBadge({ pct }: { pct: number | null }) {
@@ -36,7 +37,7 @@ function TrendBadge({ pct }: { pct: number | null }) {
 
 const BRAND_COLORS = ['#D4AF37', '#4ADE80', '#F59E0B', '#818CF8', '#EC4899', '#34D399']
 
-export function Dashboard({ skus, sales, purchases, exchangeRate }: DashboardProps) {
+export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlertsEnabled }: DashboardProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
 
   // ── Core metrics ─────────────────────────────────────────────────────────────
@@ -168,7 +169,7 @@ export function Dashboard({ skus, sales, purchases, exchangeRate }: DashboardPro
       iconBg: 'bg-blue-500/15',
       iconColor: 'text-blue-400',
       trend: null,
-      warn: stats.lowStockItems > 0,
+      warn: lowStockAlertsEnabled && stats.lowStockItems > 0,
     },
     {
       id: 'revenue',
@@ -269,8 +270,8 @@ export function Dashboard({ skus, sales, purchases, exchangeRate }: DashboardPro
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Stock Status</h4>
         <div className="grid grid-cols-3 gap-3 text-center">
           {[
-            { label: 'In Stock', val: skus.filter(s => s.quantity > s.lowStockBuffer).length, color: 'text-success' },
-            { label: 'Low Stock', val: stats.lowStockItems, color: 'text-amber-400' },
+            { label: 'In Stock', val: lowStockAlertsEnabled ? skus.filter(s => s.quantity > s.lowStockBuffer).length : skus.filter(s => s.quantity > 0).length, color: 'text-success' },
+            { label: 'Low Stock', val: lowStockAlertsEnabled ? stats.lowStockItems : 0, color: 'text-amber-400' },
             { label: 'Out of Stock', val: stats.outOfStock, color: 'text-destructive' },
           ].map(item => (
             <div key={item.label} className="rounded-xl bg-white/[0.03] p-3">

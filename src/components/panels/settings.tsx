@@ -4,20 +4,24 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { addBrand, deleteBrand, addCollection, deleteCollection, clearAllData } from '@/lib/actions'
+import { addBrand, deleteBrand, addCollection, deleteCollection, clearAllData, updateSetting } from '@/lib/actions'
 import type { BrandWithCollections } from '@/lib/types'
-import { ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle, Sparkles, Search, Check, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle, Sparkles, Search, Check, Trash2, Bell, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface SettingsProps {
   brands: BrandWithCollections[]
+  lowStockAlerts: boolean
+  usdRate: number
   onSuccess?: () => void
 }
 
-export function Settings({ brands, onSuccess }: SettingsProps) {
+export function Settings({ brands, lowStockAlerts, usdRate, onSuccess }: SettingsProps) {
   const router = useRouter()
 
+  const [lowStockEnabled,    setLowStockEnabled]    = useState(lowStockAlerts)
+  const [isTogglingAlert,    setIsTogglingAlert]    = useState(false)
   const [expandedBrand,      setExpandedBrand]      = useState<string | null>(null)
   const [brandSearch,        setBrandSearch]         = useState('')
   const [newBrandName,       setNewBrandName]        = useState('')
@@ -86,6 +90,18 @@ export function Settings({ brands, onSuccess }: SettingsProps) {
       else { router.refresh(); setConfirmDeleteCol(null); onSuccess?.() }
     } catch (err: any) { toast.error(err?.message || 'Failed to delete collection.') }
     finally { setDeletingColId(null) }
+  }
+
+  // ── Preferences ──────────────────────────────────────────────────────────
+  async function handleToggleLowStock() {
+    setIsTogglingAlert(true)
+    const next = !lowStockEnabled
+    try {
+      const result = await updateSetting('low_stock_alerts', next ? 'true' : 'false')
+      if (result?.error) { toast.error(result.error) }
+      else { setLowStockEnabled(next); router.refresh() }
+    } catch (err: any) { toast.error(err?.message || 'Failed to update setting.') }
+    finally { setIsTogglingAlert(false) }
   }
 
   // ── Clear all ─────────────────────────────────────────────────────────────
@@ -339,6 +355,64 @@ export function Settings({ brands, onSuccess }: SettingsProps) {
             }
             Add Brand
           </Button>
+        </div>
+      </div>
+
+      {/* Preferences */}
+      <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-6 mb-5">
+        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Bell className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold leading-none">Preferences</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Alerts and exchange rate settings</p>
+          </div>
+        </div>
+
+        {/* Low stock toggle */}
+        <div className="flex items-center justify-between py-3 border-b border-white/5">
+          <div>
+            <p className="text-sm font-medium">Low Stock Alerts</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Show amber badges and Low Stock filter when quantity is near the buffer
+            </p>
+          </div>
+          <button
+            onClick={handleToggleLowStock}
+            disabled={isTogglingAlert}
+            className={cn(
+              'relative h-6 w-11 shrink-0 rounded-full border transition-all duration-200',
+              lowStockEnabled
+                ? 'border-amber-500/50 bg-amber-500/20'
+                : 'border-white/10 bg-white/[0.04]',
+              isTogglingAlert && 'opacity-50 cursor-not-allowed',
+            )}
+            aria-label="Toggle low stock alerts"
+          >
+            <span className={cn(
+              'absolute top-0.5 h-5 w-5 rounded-full border transition-all duration-200',
+              lowStockEnabled
+                ? 'left-[calc(100%-1.375rem)] border-amber-500/60 bg-amber-400'
+                : 'left-0.5 border-white/20 bg-white/30',
+            )} />
+          </button>
+        </div>
+
+        {/* Exchange rate */}
+        <div className="flex items-center justify-between pt-3">
+          <div>
+            <p className="text-sm font-medium">USD / PKR Rate</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Fetched daily from ExchangeRate-API, cached for 24 h
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground/50" />
+            <span className="text-sm font-semibold tabular text-primary">
+              1 USD = {Math.round(usdRate).toLocaleString()} PKR
+            </span>
+          </div>
         </div>
       </div>
 

@@ -34,10 +34,11 @@ interface InventoryProps {
   inventory: ArticleInventory[]
   brands: BrandWithCollections[]
   exchangeRate: number
+  lowStockAlertsEnabled: boolean
   onSuccess?: () => void
 }
 
-export function Inventory({ inventory, brands, exchangeRate, onSuccess }: InventoryProps) {
+export function Inventory({ inventory, brands, exchangeRate, lowStockAlertsEnabled, onSuccess }: InventoryProps) {
   const [searchTerm, setSearchTerm]     = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'low'>('all')
   const [brandFilter, setBrandFilter]   = useState('all')
@@ -56,9 +57,9 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
     if (sizeFilter !== 'all') f = f.filter(i => i.skus.some(s => s.size === sizeFilter && s.quantity > 0))
     const inStock    = f.filter(i => i.totalQuantity > 0)
     const outOfStock = f.filter(i => i.totalQuantity === 0)
-    if (statusFilter === 'low') return { inStock: inStock.filter(i => i.skus.some(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer)), outOfStock: [] }
+    if (statusFilter === 'low' && lowStockAlertsEnabled) return { inStock: inStock.filter(i => i.skus.some(s => s.quantity > 0 && s.quantity <= s.lowStockBuffer)), outOfStock: [] }
     return { inStock, outOfStock }
-  }, [inventory, searchTerm, statusFilter, brandFilter, sizeFilter])
+  }, [inventory, searchTerm, statusFilter, brandFilter, sizeFilter, lowStockAlertsEnabled])
 
   const availableSizes = useMemo(() => {
     const s = new Set<string>()
@@ -168,7 +169,7 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
               className="pl-9 h-9 bg-[#111] border-white/10 focus:border-primary/40 text-sm" />
           </div>
           {[
-            { value: statusFilter, onChange: (v: string) => setStatusFilter(v as 'all' | 'low'), options: [['all','All In Stock'],['low','Low Stock']] },
+            { value: statusFilter, onChange: (v: string) => setStatusFilter(v as 'all' | 'low'), options: lowStockAlertsEnabled ? [['all','All In Stock'],['low','Low Stock']] : [['all','All In Stock']] },
             { value: brandFilter, onChange: (v: string) => setBrandFilter(v), options: [['all','All Brands'], ...brands.map(b => [b.id, b.name])] },
             { value: sizeFilter, onChange: (v: string) => setSizeFilter(v), options: [['all','All Sizes'], ...availableSizes.map(s => [s, s])] },
           ].map((sel, idx) => (
@@ -194,6 +195,7 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
               item={item}
               brands={brands}
               exchangeRate={exchangeRate}
+              lowStockAlertsEnabled={lowStockAlertsEnabled}
               isDeleting={deletingId === item.articleId}
               onDeleteStart={() => setDeletingId(item.articleId)}
               onDeleteCancel={() => setDeletingId(null)}
@@ -230,12 +232,13 @@ export function Inventory({ inventory, brands, exchangeRate, onSuccess }: Invent
 // ─── Inventory Card ───────────────────────────────────────────────────────────
 
 function InventoryCard({
-  item, brands, exchangeRate, isDeleting,
+  item, brands, exchangeRate, lowStockAlertsEnabled, isDeleting,
   onDeleteStart, onDeleteCancel, onSuccess,
 }: {
   item: ArticleInventory
   brands: BrandWithCollections[]
   exchangeRate: number
+  lowStockAlertsEnabled: boolean
   isDeleting: boolean
   onDeleteStart: () => void
   onDeleteCancel: () => void
@@ -245,8 +248,9 @@ function InventoryCard({
 
   const avgCost = item.skus.reduce((s, sk) => s + sk.avgCostPKR * sk.quantity, 0) /
     Math.max(item.totalQuantity, 1)
+  const costUSD    = avgCost / exchangeRate
   const suggestUSD = suggestedSellPrice(avgCost, 0, 0) / exchangeRate
-  const marginPct  = avgCost > 0 ? ((suggestUSD - avgCost / exchangeRate) / suggestUSD) * 100 : 0
+  const markupPct  = avgCost > 0 ? ((suggestUSD - costUSD) / costUSD) * 100 : 0
 
   const hasUnpaid = item.skus.some(s => !s.paidToWajid)
 
@@ -323,7 +327,7 @@ function InventoryCard({
               <span key={s.skuId} className={cn(
                 'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium tabular',
                 s.quantity === 0 ? 'border-destructive/30 bg-destructive/10 text-destructive'
-                  : s.quantity <= s.lowStockBuffer ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                  : lowStockAlertsEnabled && s.quantity <= s.lowStockBuffer ? 'border-amber-500/30 bg-amber-500/10 text-amber-400'
                   : 'border-white/8 bg-white/[0.04] text-foreground',
               )}>
                 <span className="text-muted-foreground">{s.size}</span>
@@ -340,7 +344,7 @@ function InventoryCard({
                 <>
                   <div className="text-xs text-muted-foreground">Cost {formatUSD(avgCost / exchangeRate)}</div>
                   <div className="text-sm font-bold text-primary num-display">Sell {formatUSD(suggestUSD)}</div>
-                  <div className="text-[10px] text-success">{marginPct.toFixed(0)}% margin</div>
+                  <div className="text-[10px] text-success">{markupPct.toFixed(0)}% markup</div>
                 </>
               )}
             </div>
