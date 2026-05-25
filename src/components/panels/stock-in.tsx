@@ -133,7 +133,13 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
         onSuccess?.()
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to add stock. Please try again.')
+      const msg = err?.message ?? ''
+      if (msg.toLowerCase().includes('unexpected response') || msg.toLowerCase().includes('failed to fetch')) {
+        toast.error('Server returned an unexpected response. Check the browser console and server logs for details.')
+      } else {
+        toast.error(msg || 'Failed to add stock. Please try again.')
+      }
+      console.error('[StockIn] handleSubmit error:', err)
     } finally {
       setIsSubmitting(false)
     }

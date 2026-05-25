@@ -19,12 +19,16 @@ export async function uploadArticleImage(formData: FormData): Promise<{ url?: st
       .from('product-images')
       .upload(path, arrayBuffer, { contentType: file.type, upsert: false })
 
-    if (error) return { error: error.message }
+    if (error) {
+      console.error('[uploadArticleImage] storage.upload failed:', error)
+      return { error: `Storage upload failed: ${error.message}` }
+    }
 
     const { data } = client.storage.from('product-images').getPublicUrl(path)
     return { url: data.publicUrl }
   } catch (e: any) {
-    return { error: e?.message || 'Image upload failed.' }
+    console.error('[uploadArticleImage] unexpected error:', e)
+    return { error: `Image upload error: ${e?.message || 'unknown'}` }
   }
 }
 
@@ -60,10 +64,17 @@ export async function stockIn(
         .insert({ name: articleName, collection_id: collectionId, image_url: imageUrl ?? null })
         .select('id')
         .single()
-      if (error) throw error
+      if (error) {
+        console.error('[stockIn] article insert failed:', error)
+        throw new Error(`Article insert failed: ${error.message}`)
+      }
       article = data
     } else if (imageUrl) {
-      await client.from('articles').update({ image_url: imageUrl }).eq('id', article.id)
+      const { error } = await client.from('articles').update({ image_url: imageUrl }).eq('id', article.id)
+      if (error) {
+        console.error('[stockIn] article image_url update failed:', error)
+        throw new Error(`Article image update failed: ${error.message}`)
+      }
     }
 
     for (const { size, quantity } of sizes) {
@@ -89,7 +100,10 @@ export async function stockIn(
           })
           .select('id')
           .single()
-        if (error) throw error
+        if (error) {
+          console.error('[stockIn] sku insert failed:', error)
+          throw new Error(`SKU insert failed (${size}): ${error.message}`)
+        }
         skuId = newSku.id
       } else {
         const newQty = existingSku.quantity + quantity
@@ -102,12 +116,15 @@ export async function stockIn(
           .from('skus')
           .update({ quantity: newQty, avg_cost_pkr: newAvgCost, avg_exchange_rate: newAvgRate })
           .eq('id', existingSku.id)
-        if (error) throw error
+        if (error) {
+          console.error('[stockIn] sku update failed:', error)
+          throw new Error(`SKU update failed (${size}): ${error.message}`)
+        }
 
         skuId = existingSku.id
       }
 
-      const { error } = await client.from('purchases').insert({
+      const { error: purchaseError } = await client.from('purchases').insert({
         sku_id: skuId,
         quantity,
         cost_pkr: costPKR,
@@ -118,12 +135,16 @@ export async function stockIn(
         notes: notes || null,
         paid_to_wajid: paidToWajid,
       })
-      if (error) throw error
+      if (purchaseError) {
+        console.error('[stockIn] purchase insert failed:', purchaseError)
+        throw new Error(`Purchase record failed (${size}): ${purchaseError.message}`)
+      }
     }
 
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
+    console.error('[stockIn] caught error:', e)
     return { error: e?.message || 'Failed to add stock. Please try again.' }
   }
 }
