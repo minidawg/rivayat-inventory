@@ -16,9 +16,9 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'collections_brand_id_fkey'; columns: ['brand_id']; referencedRelation: 'brands'; referencedColumns: ['id'] }]
       }
       articles: {
-        Row:    { id: string; name: string; collection_id: string }
-        Insert: { id?: string; name: string; collection_id: string }
-        Update: { id?: string; name?: string; collection_id?: string }
+        Row:    { id: string; name: string; collection_id: string; image_url: string | null }
+        Insert: { id?: string; name: string; collection_id: string; image_url?: string | null }
+        Update: { id?: string; name?: string; collection_id?: string; image_url?: string | null }
         Relationships: [{ foreignKeyName: 'articles_collection_id_fkey'; columns: ['collection_id']; referencedRelation: 'collections'; referencedColumns: ['id'] }]
       }
       skus: {
@@ -126,6 +126,7 @@ export interface ArticleInventory {
   collectionId: string
   collectionName: string
   totalQuantity: number
+  imageUrl: string | null
   skus: {
     skuId: string
     size: string

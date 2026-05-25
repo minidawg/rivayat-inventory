@@ -3,6 +3,31 @@
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+// ─── Image Upload ─────────────────────────────────────────────────────────────
+
+export async function uploadArticleImage(formData: FormData): Promise<{ url?: string; error?: string }> {
+  try {
+    const client = await getSupabaseServerClient()
+    const file = formData.get('file') as File
+    if (!file || file.size === 0) return { error: 'No file provided.' }
+
+    const ext = file.name.split('.').pop() ?? 'jpg'
+    const path = `articles/${crypto.randomUUID()}.${ext}`
+    const arrayBuffer = await file.arrayBuffer()
+
+    const { error } = await client.storage
+      .from('product-images')
+      .upload(path, arrayBuffer, { contentType: file.type, upsert: false })
+
+    if (error) return { error: error.message }
+
+    const { data } = client.storage.from('product-images').getPublicUrl(path)
+    return { url: data.publicUrl }
+  } catch (e: any) {
+    return { error: e?.message || 'Image upload failed.' }
+  }
+}
+
 // ─── Stock In ─────────────────────────────────────────────────────────────────
 
 export async function stockIn(
@@ -16,6 +41,7 @@ export async function stockIn(
   source: string,
   notes: string,
   paidToWajid: boolean,
+  imageUrl?: string,
 ): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
@@ -31,11 +57,13 @@ export async function stockIn(
     if (!article) {
       const { data, error } = await client
         .from('articles')
-        .insert({ name: articleName, collection_id: collectionId })
+        .insert({ name: articleName, collection_id: collectionId, image_url: imageUrl ?? null })
         .select('id')
         .single()
       if (error) throw error
       article = data
+    } else if (imageUrl) {
+      await client.from('articles').update({ image_url: imageUrl }).eq('id', article.id)
     }
 
     for (const { size, quantity } of sizes) {

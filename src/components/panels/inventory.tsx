@@ -18,6 +18,7 @@ import { formatPKR, formatUSD, suggestedSellPrice } from '@/lib/data'
 import { updateSku, updateArticle, deleteArticle, updateSkuPaidStatus } from '@/lib/actions'
 import { SIZES } from '@/lib/types'
 import type { ArticleInventory, BrandWithCollections } from '@/lib/types'
+import Image from 'next/image'
 import {
   Download, Edit, ChevronDown, ChevronUp, Package, Search, Filter,
   Trash2, X, Check, Loader2, AlertTriangle,
@@ -261,6 +262,20 @@ function InventoryCard({
           </TooltipTrigger>
           <TooltipContent>Status: Unpaid</TooltipContent>
         </Tooltip>
+      )}
+
+      {/* Thumbnail */}
+      {item.imageUrl && (
+        <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-xl border border-white/5">
+          <Image
+            src={item.imageUrl}
+            alt={item.articleName}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover"
+            loading="lazy"
+          />
+        </div>
       )}
 
       {/* Top row */}

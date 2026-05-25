@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatPKR, formatUSD, totalCostPKR, suggestedSellPrice } from '@/lib/data'
-import { stockIn } from '@/lib/actions'
+import { stockIn, uploadArticleImage } from '@/lib/actions'
 import { SIZES, SOURCES } from '@/lib/types'
 import type { BrandWithCollections } from '@/lib/types'
 import { Plus, X, Loader2, PackagePlus, Tag, CheckCircle2, Minus } from 'lucide-react'
@@ -44,6 +44,8 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
   const [source,        setSource]        = useState<typeof SOURCES[number]>('prebook')
   const [paidToWajid,   setPaidToWajid]   = useState(false)
   const [notes,         setNotes]         = useState('')
+  const [imageFile,     setImageFile]     = useState<File | null>(null)
+  const [imagePreview,  setImagePreview]  = useState<string | null>(null)
   const [isSubmitting,  setIsSubmitting]  = useState(false)
   const [success,       setSuccess]       = useState(false)
   const [nextId,        setNextId]        = useState(1)
@@ -81,11 +83,21 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
     setSizeRows(r => r.map(x => x.id === id ? { ...x, quantity: Math.max(1, x.quantity + delta) } : x))
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    setImageFile(file)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImagePreview(file ? URL.createObjectURL(file) : null)
+  }
+
   function resetForm() {
     setBrandId(''); setCollectionId(''); setArticleName('')
     setSizeRows([{ id: 0, size: 'M', quantity: 1 }])
     setCostPKR(''); setCommissionPKR(''); setShippingPKR('0')
     setSource('prebook'); setPaidToWajid(false); setNotes(''); setNextId(1)
+    setImageFile(null)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImagePreview(null)
   }
 
   async function handleSubmit() {
@@ -95,11 +107,21 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
 
     setIsSubmitting(true)
     try {
+      let imageUrl: string | undefined
+      if (imageFile) {
+        const fd = new FormData()
+        fd.append('file', imageFile)
+        const { url, error: uploadError } = await uploadArticleImage(fd)
+        if (uploadError) { toast.error(`Image upload failed: ${uploadError}`); setIsSubmitting(false); return }
+        imageUrl = url
+      }
+
       const result = await stockIn(
         articleName.trim(), collectionId,
         valid.map(r => ({ size: r.size, quantity: r.quantity })),
         Number(costPKR), Number(commissionPKR) || 0, Number(shippingPKR) || 0,
         exchangeRate, source, notes.trim(), paidToWajid,
+        imageUrl,
       )
       if (result?.error) {
         toast.error(result.error)
@@ -175,6 +197,29 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 <Input value={articleName} onChange={e => setArticleName(e.target.value)}
                   placeholder="e.g. Muzlin 3-Piece Embroidered"
                   className="h-11 bg-[#111] border-white/10 focus:border-primary/40" />
+              </div>
+
+              <div className="md:col-span-2">
+                <FieldLabel>Product Image <span className="font-normal lowercase tracking-normal text-muted-foreground/50">(optional)</span></FieldLabel>
+                <div className="flex items-start gap-4">
+                  <label className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl border border-dashed border-white/15 bg-[#111] px-4 text-sm text-muted-foreground cursor-pointer hover:border-primary/30 hover:text-foreground transition-all">
+                    <input type="file" accept="image/*" onChange={handleImageChange} className="sr-only" />
+                    {imageFile ? imageFile.name : 'Choose image…'}
+                  </label>
+                  {imagePreview && (
+                    <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-white/10">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => { setImageFile(null); if (imagePreview) URL.revokeObjectURL(imagePreview); setImagePreview(null) }}
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-4 w-4 text-white" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -49,7 +49,7 @@ export async function getInventory(): Promise<ArticleInventory[]> {
     const { data } = await client
       .from('articles')
       .select(`
-        id, name,
+        id, name, image_url,
         collections( id, name, brands(id, name) ),
         skus( id, size, quantity, low_stock_buffer, avg_cost_pkr, avg_exchange_rate, purchases(paid_to_wajid) )
       `)
@@ -65,6 +65,7 @@ export async function getInventory(): Promise<ArticleInventory[]> {
       collectionId: a.collections?.id ?? '',
       collectionName: a.collections?.name ?? '',
       totalQuantity: (a.skus ?? []).reduce((s: number, x: any) => s + (x.quantity ?? 0), 0),
+      imageUrl: a.image_url ?? null,
       skus: (a.skus ?? []).map((s: any) => ({
         skuId: s.id,
         size: s.size,

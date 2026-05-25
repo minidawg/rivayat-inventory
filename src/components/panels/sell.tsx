@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import Image from 'next/image'
 import { formatPKR, formatUSD } from '@/lib/data'
 import { recordSale } from '@/lib/actions'
 import { CHANNELS, PAYMENT_METHODS } from '@/lib/types'
@@ -213,9 +214,9 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
         <p className="text-sm text-muted-foreground">Process a new sale from your inventory</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         {/* Left column */}
-        <div className="lg:col-span-2 space-y-5">
+        <div className="space-y-5">
           {/* Search */}
           <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-6">
             <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5">
@@ -390,9 +391,23 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
         </div>
 
         {/* Summary sidebar */}
-        <div className="lg:col-span-1">
+        <div>
           <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-6 sticky top-8">
             <h3 className="text-sm font-semibold mb-5 pb-4 border-b border-white/5">Sale Summary</h3>
+
+            {/* Article image */}
+            {selectedArticle?.imageUrl && (
+              <div className="relative mb-5 aspect-square w-full overflow-hidden rounded-md">
+                <Image
+                  src={selectedArticle.imageUrl}
+                  alt={selectedArticle.articleName}
+                  fill
+                  sizes="340px"
+                  className="object-cover"
+                  loading="lazy"
+                />
+              </div>
+            )}
 
             <div className="space-y-3">
               {/* Items selected */}
