@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { updateSetting } from '@/lib/actions'
 import {
   LayoutDashboard,
   PackagePlus,
@@ -43,7 +42,6 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [localRate, setLocalRate] = useState(exchangeRate)
   const [isAmethyst, setIsAmethyst] = useState(false)
 
   useEffect(() => {
@@ -54,11 +52,6 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
     setIsSyncing(true)
     router.refresh()
     setTimeout(() => setIsSyncing(false), 1200)
-  }
-
-  async function handleRateChange(rate: number) {
-    setLocalRate(rate)
-    try { await updateSetting('usd_rate', String(rate)) } catch { /* non-critical */ }
   }
 
   function toggleTheme() {
@@ -227,13 +220,9 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
           {/* Rate */}
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] text-muted-foreground">USD/PKR</span>
-            <input
-              type="number"
-              value={localRate}
-              onChange={(e) => handleRateChange(Number(e.target.value) || 278)}
-              className="w-16 rounded-lg border border-primary/15 bg-input px-2 py-1 text-center text-[12px] font-semibold text-foreground transition-all focus:border-primary/40 focus:outline-none"
-              min="1"
-            />
+            <span className="text-[12px] font-semibold tabular text-foreground">
+              {exchangeRate.toFixed(2)}
+            </span>
           </div>
 
           <div className="text-center">
