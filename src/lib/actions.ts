@@ -5,26 +5,35 @@ import { revalidatePath } from 'next/cache'
 
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
+const ALLOWED_IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const ALLOWED_IMAGE_EXT  = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif'])
+const MAX_IMAGE_BYTES    = 10 * 1024 * 1024 // 10 MB
+
 export async function uploadArticleImage(formData: FormData): Promise<{ url?: string; error?: string }> {
   try {
     const client = await getSupabaseServerClient()
     const file = formData.get('file') as File
     if (!file || file.size === 0) return { error: 'No file provided.' }
 
-    const ext = file.name.split('.').pop() ?? 'jpg'
-    const path = `articles/${crypto.randomUUID()}.${ext}`
+    if (file.size > MAX_IMAGE_BYTES) return { error: 'Image must be under 10 MB.' }
+
+    const ext = (file.name.split('.').pop() ?? '').toLowerCase()
+    if (!ALLOWED_IMAGE_EXT.has(ext))  return { error: 'Only JPEG, PNG, WebP, and GIF images are allowed.' }
+    if (!ALLOWED_IMAGE_MIME.has(file.type)) return { error: `File type "${file.type}" is not allowed.` }
+
+    const safePath = `articles/${crypto.randomUUID()}.${ext}`
     const arrayBuffer = await file.arrayBuffer()
 
     const { error } = await client.storage
       .from('product-images')
-      .upload(path, arrayBuffer, { contentType: file.type, upsert: false })
+      .upload(safePath, arrayBuffer, { contentType: file.type, upsert: false })
 
     if (error) {
       console.error('[uploadArticleImage] storage.upload failed:', error)
       return { error: `Storage upload failed: ${error.message}` }
     }
 
-    const { data } = client.storage.from('product-images').getPublicUrl(path)
+    const { data } = client.storage.from('product-images').getPublicUrl(safePath)
     return { url: data.publicUrl }
   } catch (e: any) {
     console.error('[uploadArticleImage] unexpected error:', e)
