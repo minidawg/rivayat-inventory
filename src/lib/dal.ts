@@ -9,6 +9,7 @@ import type {
   PurchaseRow,
   ArticleInventory,
   BrandWithCollections,
+  OverheadRow,
 } from '@/lib/types'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -208,6 +209,27 @@ export async function getPurchases(): Promise<PurchaseRow[]> {
 }
 
 // ─── Overheads ───────────────────────────────────────────────────────────────
+
+export async function getOverheads(): Promise<OverheadRow[]> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { data } = await client
+      .from('overheads')
+      .select('id, created_at, category, amount, expense_date, notes')
+      .order('expense_date', { ascending: false })
+    if (!data) return []
+    return (data as any[]).map((r) => ({
+      id: r.id,
+      createdAt: r.created_at,
+      category: r.category,
+      amount: Number(r.amount),
+      expenseDate: r.expense_date,
+      notes: r.notes ?? null,
+    }))
+  } catch {
+    return []
+  }
+}
 
 export async function getTotalOverheads(): Promise<number> {
   try {

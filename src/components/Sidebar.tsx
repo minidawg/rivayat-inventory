@@ -34,6 +34,7 @@ const navItems = [
   { id: 'inventory',    label: 'Inventory',         href: '/inventory', icon: Package,         group: 'Data' },
   { id: 'purchase-log', label: 'Purchase Log',      href: '/purchases', icon: ClipboardList,   group: 'Data' },
   { id: 'sales-log',    label: 'Sales Log',         href: '/sales',     icon: DollarSign,      group: 'Data' },
+  { id: 'cost-log',     label: 'Cost Log',          href: '/costs',     icon: Receipt,         group: 'Data' },
   { id: 'settings',     label: 'Brands & Settings', href: '/settings',  icon: Settings,        group: 'System' },
 ]
 

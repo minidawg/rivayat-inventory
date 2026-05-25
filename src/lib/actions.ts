@@ -2,6 +2,7 @@
 
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { OVERHEAD_CATEGORIES } from '@/lib/types'
 
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
@@ -555,9 +556,9 @@ export async function recordCost(
   notes: string,
 ): Promise<{ error?: string }> {
   try {
-    if (!category) return { error: 'Category is required.' }
+    if (!OVERHEAD_CATEGORIES.includes(category as any)) return { error: 'Invalid category.' }
     if (!amount || amount <= 0) return { error: 'Amount must be greater than 0.' }
-    if (!expenseDate) return { error: 'Date is required.' }
+    if (!expenseDate || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return { error: 'Invalid date.' }
     const client = await getSupabaseServerClient()
     const { error } = await client.from('overheads').insert({
       category,
@@ -565,11 +566,61 @@ export async function recordCost(
       expense_date: expenseDate,
       notes: notes.trim() || null,
     })
-    if (error) throw error
+    if (error) {
+      console.error('[recordCost] insert failed:', error)
+      throw error
+    }
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
     return { error: e?.message || 'Failed to record cost.' }
+  }
+}
+
+export async function deleteOverhead(id: string): Promise<{ error?: string }> {
+  try {
+    if (!id) return { error: 'ID is required.' }
+    const client = await getSupabaseServerClient()
+    const { error } = await client.from('overheads').delete().eq('id', id)
+    if (error) {
+      console.error('[deleteOverhead] delete failed:', error)
+      throw error
+    }
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to delete cost.' }
+  }
+}
+
+export async function updateOverhead(
+  id: string,
+  updates: { category?: string; amount?: number; expenseDate?: string; notes?: string },
+): Promise<{ error?: string }> {
+  try {
+    if (!id) return { error: 'ID is required.' }
+    if (updates.category !== undefined && !OVERHEAD_CATEGORIES.includes(updates.category as any))
+      return { error: 'Invalid category.' }
+    if (updates.amount !== undefined && updates.amount <= 0)
+      return { error: 'Amount must be greater than 0.' }
+    if (updates.expenseDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(updates.expenseDate))
+      return { error: 'Invalid date.' }
+    const patch: { category?: string; amount?: number; expense_date?: string; notes?: string | null } = {}
+    if (updates.category !== undefined)     patch.category     = updates.category
+    if (updates.amount !== undefined)       patch.amount       = updates.amount
+    if (updates.expenseDate !== undefined)  patch.expense_date = updates.expenseDate
+    if (updates.notes !== undefined)        patch.notes        = updates.notes.trim() || null
+    if (Object.keys(patch).length === 0)    return {}
+    const client = await getSupabaseServerClient()
+    const { error } = await client.from('overheads').update(patch).eq('id', id)
+    if (error) {
+      console.error('[updateOverhead] update failed:', error)
+      throw error
+    }
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to update cost.' }
   }
 }
 
