@@ -88,6 +88,10 @@ export async function stockIn(
     }
 
     for (const { size, quantity } of sizes) {
+      if (!(SIZES as readonly string[]).includes(size))
+        throw new Error(`Invalid size: ${size}`)
+      if (quantity <= 0)
+        throw new Error(`Quantity must be greater than 0 for size ${size}`)
       const { data: existingSku } = await client
         .from('skus')
         .select('id, quantity, avg_cost_pkr, avg_exchange_rate')
@@ -167,6 +171,10 @@ export async function recordSale(
   exchangeRate: number,
   paymentMethod: string,
 ): Promise<{ error?: string }> {
+  if (!skuId)             return { error: 'SKU is required.' }
+  if (quantity <= 0)      return { error: 'Quantity must be greater than 0.' }
+  if (sellingPriceUSD <= 0) return { error: 'Selling price must be greater than 0.' }
+  if (exchangeRate <= 0)  return { error: 'Exchange rate must be greater than 0.' }
   try {
     const client = await getSupabaseServerClient()
     const { data, error } = await client.rpc('record_sale_atomic', {
@@ -194,10 +202,17 @@ export async function recordMultiSale(
   clientName: string,
   paymentMethod: string,
 ): Promise<{ error?: string }> {
+  if (!items || items.length === 0) return { error: 'At least one item is required.' }
+  for (const item of items) {
+    if (!item.sku_id)          return { error: 'Each item must have a SKU.' }
+    if (item.quantity <= 0)    return { error: 'Each item quantity must be greater than 0.' }
+    if (item.selling_price <= 0) return { error: 'Each item selling price must be greater than 0.' }
+    if (item.exchange_rate <= 0) return { error: 'Each item exchange rate must be greater than 0.' }
+  }
   try {
     const client = await getSupabaseServerClient()
     const { data, error } = await client.rpc('record_multi_sale', {
-      p_items: JSON.stringify(items),
+      p_items: items,
       p_channel: channel || null,
       p_client_name: clientName || null,
       p_payment_method: paymentMethod || null,
@@ -217,7 +232,10 @@ export async function deleteSale(saleId: string): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
     const { data, error } = await client.rpc('delete_sale_atomic', { p_sale_id: saleId })
-    if (error) throw error
+    if (error) {
+      console.error('[deleteSale] rpc failed:', error)
+      throw error
+    }
     if (data?.error) return { error: data.error }
     revalidatePath('/', 'layout')
     return {}
@@ -232,7 +250,10 @@ export async function deletePurchase(purchaseId: string): Promise<{ error?: stri
   try {
     const client = await getSupabaseServerClient()
     const { data, error } = await client.rpc('delete_purchase_atomic', { p_purchase_id: purchaseId })
-    if (error) throw error
+    if (error) {
+      console.error('[deletePurchase] rpc failed:', error)
+      throw error
+    }
     if (data?.error) return { error: data.error }
     revalidatePath('/', 'layout')
     return {}
@@ -461,13 +482,21 @@ export async function clearAllData(confirmation: string): Promise<{ error?: stri
 
 // ─── Paid to Wajid ────────────────────────────────────────────────────────────
 
-export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean) {
-  const client = await getSupabaseServerClient()
-  const { error } = await client
-    .from('purchases')
-    .update({ paid_to_wajid: paidToWajid })
-    .eq('sku_id', skuId)
-  if (error) throw error
+export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean): Promise<{ error?: string }> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { error } = await client
+      .from('purchases')
+      .update({ paid_to_wajid: paidToWajid })
+      .eq('sku_id', skuId)
+    if (error) {
+      console.error('[updateSkuPaidStatus] update failed:', error)
+      throw error
+    }
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Failed to update paid status.' }
+  }
 }
 
 // ─── Emergency Full Backup Export ────────────────────────────────────────────
