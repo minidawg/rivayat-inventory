@@ -19,7 +19,9 @@ import {
   Sparkles,
   Gem,
   Crown,
+  LogOut,
 } from 'lucide-react'
+import { logout } from '@/actions/auth'
 
 interface SidebarProps {
   isConnected: boolean
@@ -204,6 +206,17 @@ export function Sidebar({ isConnected, exchangeRate }: SidebarProps) {
               {isAmethyst ? 'Amethyst' : 'Noir Gold'}
             </button>
           </div>
+
+          {/* Sign Out */}
+          <form action={logout}>
+            <button
+              type="submit"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/15 bg-destructive/5 px-4 py-2 text-[12px] font-medium text-destructive/70 transition-all duration-250 hover:border-destructive/25 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign Out
+            </button>
+          </form>
 
           {/* Sync */}
           <button
