@@ -32,11 +32,11 @@ const navItems = [
   { id: 'dashboard',     label: 'Dashboard',        href: '/dashboard', icon: LayoutDashboard, group: 'Overview' },
   { id: 'stock-in',     label: 'Stock In',          href: '/stock-in',     icon: PackagePlus, group: 'Operations' },
   { id: 'sell',         label: 'Record Sale',       href: '/sell',         icon: ShoppingCart, group: 'Operations' },
-  { id: 'record-cost',  label: 'Record Cost',       href: '/record-cost',  icon: Receipt,      group: 'Operations' },
+  { id: 'record-cost',  label: 'Record Expense',    href: '/record-cost',  icon: Receipt,      group: 'Operations' },
   { id: 'inventory',    label: 'Inventory',         href: '/inventory', icon: Package,         group: 'Data' },
   { id: 'purchase-log', label: 'Purchase Log',      href: '/purchases', icon: ClipboardList,   group: 'Data' },
   { id: 'sales-log',    label: 'Sales Log',         href: '/sales',     icon: DollarSign,      group: 'Data' },
-  { id: 'cost-log',     label: 'Cost Log',          href: '/costs',     icon: Receipt,         group: 'Data' },
+  { id: 'cost-log',     label: 'Expense Log',       href: '/costs',     icon: Receipt,         group: 'Data' },
   { id: 'settings',     label: 'Brands & Settings', href: '/settings',  icon: Settings,        group: 'System' },
 ]
 

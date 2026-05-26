@@ -140,7 +140,7 @@ export function CostLog({ overheads }: CostLogProps) {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-[1.9rem] font-semibold tracking-tight leading-none mb-1">
-            Cost Log
+            Expense Log
           </h2>
           <p className="text-sm text-muted-foreground">All recorded overheads and operating expenses</p>
         </div>

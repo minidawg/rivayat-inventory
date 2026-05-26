@@ -5,11 +5,10 @@ import { formatPKR, formatUSD } from '@/lib/data'
 import type { SkuForStats, SaleRow, PurchaseRow } from '@/lib/types'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, Package, DollarSign, ShoppingBag,
-  AlertTriangle, Sparkles, Crown, BarChart2, Users, ArrowUpRight, ChevronDown, Receipt,
+  TrendingUp, TrendingDown, Package, DollarSign,
+  AlertTriangle, Sparkles, Crown, Users, ArrowUpRight, ChevronDown, Receipt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,7 +35,6 @@ function TrendBadge({ pct }: { pct: number | null }) {
   )
 }
 
-const BRAND_COLORS = ['#D4AF37', '#4ADE80', '#F59E0B', '#818CF8', '#EC4899', '#34D399']
 
 export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlertsEnabled, totalOverheadsUSD }: DashboardProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -137,22 +135,7 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
     return Object.values(map).filter(c => c.name !== 'Anonymous').sort((a, b) => b.spent - a.spent).slice(0, 5)
   }, [sales])
 
-  // ── Profit by brand (donut) ───────────────────────────────────────────────
-  const profitByBrand = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const s of sales) {
-      const rate = s.exchangeRateAtSale || exchangeRate
-      const profit = (s.sellingPrice - (s.costPKRAtSale || 0) / rate) * s.quantity
-      map[s.brandName] = (map[s.brandName] || 0) + profit
-    }
-    const total = Object.values(map).reduce((a, b) => a + b, 0)
-    return Object.entries(map)
-      .map(([name, value], i) => ({ name, value, color: BRAND_COLORS[i % BRAND_COLORS.length], pct: total > 0 ? value / total * 100 : 0 }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6)
-  }, [sales, exchangeRate])
-
-  // ── Revenue by channel (drill-down) ──────────────────────────────────────
+  // ── Revenue by channel ────────────────────────────────────────────────────
   const revenueByChannel = useMemo(() => {
     const map: Record<string, number> = {}
     for (const s of sales) {
@@ -162,7 +145,7 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
     return Object.entries(map).sort((a, b) => b[1] - a[1])
   }, [sales])
 
-  // ── KPI cards ─────────────────────────────────────────────────────────────
+  // ── KPI cards (5 core metrics) ────────────────────────────────────────────
   const kpiCards = [
     {
       id: 'inventory',
@@ -187,19 +170,8 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
       warn: false,
     },
     {
-      id: 'profit',
-      label: 'Gross Profit',
-      value: formatUSD(stats.totalProfitUSD),
-      sub: `${stats.profitMargin.toFixed(1)}% margin (pre-overhead)`,
-      icon: TrendingUp,
-      iconBg: 'bg-success/15',
-      iconColor: 'text-success',
-      trend: trends.profTrend,
-      warn: false,
-    },
-    {
-      id: 'overheads',
-      label: 'Total Overheads',
+      id: 'expenses',
+      label: 'Total Expenses',
       value: formatUSD(totalOverheadsUSD),
       sub: 'rent · shipping · supplies',
       icon: Receipt,
@@ -209,88 +181,31 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
       warn: false,
     },
     {
-      id: 'truenet',
-      label: 'True Net Profit',
-      value: formatUSD(stats.trueNetProfitUSD),
-      sub: `${stats.trueMargin.toFixed(1)}% net margin`,
-      icon: TrendingUp,
-      iconBg: stats.trueNetProfitUSD >= 0 ? 'bg-success/15' : 'bg-destructive/15',
-      iconColor: stats.trueNetProfitUSD >= 0 ? 'text-success' : 'text-destructive',
-      trend: null,
-      warn: stats.trueNetProfitUSD < 0,
-    },
-    {
-      id: 'sales',
-      label: 'Total Sales',
-      value: stats.salesCount.toString(),
-      sub: 'transactions',
-      icon: ShoppingBag,
-      iconBg: 'bg-purple-500/15',
-      iconColor: 'text-purple-400',
-      trend: null,
-      warn: false,
-    },
-    {
-      id: 'aov',
-      label: 'Avg Order Value',
-      value: formatUSD(stats.avgOrderUSD),
-      sub: 'per transaction',
-      icon: BarChart2,
+      id: 'cogs',
+      label: 'Total Cost',
+      value: formatUSD(stats.totalCostUSD),
+      sub: 'cost of goods sold',
+      icon: TrendingDown,
       iconBg: 'bg-amber-500/15',
       iconColor: 'text-amber-400',
       trend: null,
       warn: false,
     },
     {
-      id: 'top',
-      label: 'Top Article',
-      value: topSellers[0]?.name ?? '—',
-      sub: topSellers[0] ? `${topSellers[0].qty} units sold` : 'No sales yet',
-      icon: Crown,
-      iconBg: 'bg-primary/15',
-      iconColor: 'text-primary',
+      id: 'netprofit',
+      label: 'Net Profit',
+      value: formatUSD(stats.trueNetProfitUSD),
+      sub: `${stats.trueMargin.toFixed(1)}% margin · Revenue − (Expenses + Cost)`,
+      icon: TrendingUp,
+      iconBg: stats.trueNetProfitUSD >= 0 ? 'bg-success/15' : 'bg-destructive/15',
+      iconColor: stats.trueNetProfitUSD >= 0 ? 'text-success' : 'text-destructive',
       trend: null,
-      warn: false,
+      warn: stats.trueNetProfitUSD < 0,
     },
   ]
 
-  // ── Drill-down content ────────────────────────────────────────────────────
+  // ── Drill-down content (inventory card only) ─────────────────────────────
   const drillContent: Record<string, React.ReactNode> = {
-    revenue: (
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Revenue by Channel</h4>
-        <div className="space-y-2">
-          {revenueByChannel.map(([ch, rev]) => {
-            const pct = stats.totalRevenueUSD > 0 ? rev / stats.totalRevenueUSD * 100 : 0
-            return (
-              <div key={ch} className="flex items-center gap-3">
-                <div className="w-20 text-sm text-muted-foreground truncate">{ch}</div>
-                <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-                </div>
-                <div className="text-sm font-semibold tabular w-20 text-right">{formatUSD(rev)}</div>
-                <div className="text-xs text-muted-foreground tabular w-12 text-right">{pct.toFixed(0)}%</div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    ),
-    profit: (
-      <div>
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Profit by Brand</h4>
-        <div className="space-y-2">
-          {profitByBrand.map(item => (
-            <div key={item.name} className="flex items-center gap-3">
-              <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-              <div className="flex-1 text-sm text-muted-foreground truncate">{item.name}</div>
-              <div className="text-sm font-semibold tabular">{formatUSD(item.value)}</div>
-              <div className="text-xs text-muted-foreground tabular w-10 text-right">{item.pct.toFixed(0)}%</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
     inventory: (
       <div>
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Stock Status</h4>
@@ -327,8 +242,8 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 stagger-children">
+      {/* KPI Grid — 5 core metrics */}
+      <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 stagger-children">
         {kpiCards.map((card) => (
           <button
             key={card.id}
@@ -417,39 +332,34 @@ export function Dashboard({ skus, sales, purchases, exchangeRate, lowStockAlerts
           </div>
         </div>
 
-        {/* Profit donut */}
+        {/* Revenue by Channel */}
         <div className="lg:col-span-2 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-5 premium-card">
-          <div className="mb-3">
-            <h3 className="text-sm font-semibold leading-none">Profit by Brand</h3>
-            <p className="text-[11px] text-muted-foreground mt-1">USD · hover for %</p>
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold leading-none">Revenue by Channel</h3>
+            <p className="text-[11px] text-muted-foreground mt-1">USD · all-time</p>
           </div>
-          {profitByBrand.length > 0 ? (
-            <>
-              <div className="h-[160px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={profitByBrand} cx="50%" cy="50%" innerRadius={50} outerRadius={72} paddingAngle={3} dataKey="value" stroke="none">
-                      {profitByBrand.map((e, i) => <Cell key={i} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v, _name, props) => [`${formatUSD(Number(v))} (${(props as any).payload.pct.toFixed(1)}%)`, (props as any).payload.name]}
-                      contentStyle={{ background:'#1A1A1A', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', color:'#FAF8F5', fontSize:'12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-                {profitByBrand.map(item => (
-                  <div key={item.name} className="flex items-center gap-1.5 text-[10px]">
-                    <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="text-muted-foreground truncate max-w-[80px]">{item.name}</span>
-                    <span className="text-foreground/60 tabular">{item.pct.toFixed(0)}%</span>
+          {revenueByChannel.length > 0 ? (
+            <div className="space-y-3">
+              {revenueByChannel.map(([ch, rev]) => {
+                const pct = stats.totalRevenueUSD > 0 ? rev / stats.totalRevenueUSD * 100 : 0
+                return (
+                  <div key={ch}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-foreground/80">{ch}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold tabular">{formatUSD(rev)}</span>
+                        <span className="text-[10px] text-muted-foreground tabular w-8 text-right">{pct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                ))}
-              </div>
-            </>
+                )
+              })}
+            </div>
           ) : (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">No data yet</div>
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">No sales data yet</div>
           )}
         </div>
       </div>

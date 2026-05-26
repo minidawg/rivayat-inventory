@@ -65,7 +65,7 @@ export function RecordCost() {
     <div className="animate-fade-in">
       <div className="mb-8">
         <h2 className="font-[family-name:var(--font-display)] text-[1.9rem] font-semibold tracking-tight leading-none mb-1">
-          Record Cost
+          Record Expense
         </h2>
         <p className="text-sm text-muted-foreground">Log business overheads and operating expenses</p>
       </div>
@@ -182,7 +182,7 @@ export function RecordCost() {
               ) : isSubmitting ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Recording…</>
               ) : (
-                <><Receipt className="mr-2 h-4 w-4" /> Record Cost</>
+                <><Receipt className="mr-2 h-4 w-4" /> Record Expense</>
               )}
             </Button>
 
