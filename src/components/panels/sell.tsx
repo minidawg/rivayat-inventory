@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Image from 'next/image'
 import { formatPKR, formatUSD } from '@/lib/data'
-import { recordSale } from '@/lib/actions'
+import { recordMultiSale } from '@/lib/actions'
 import { CHANNELS, PAYMENT_METHODS } from '@/lib/types'
 import type { ArticleInventory } from '@/lib/types'
 import { Loader2, Search, ShoppingCart, User, CheckCircle2, X, Plus, Minus } from 'lucide-react'
@@ -135,21 +135,19 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
     if (!hasValidSale) return
     setIsSubmitting(true)
     try {
-      for (const item of sizesToSell.filter(s => s.quantity > 0 && Number(s.sellingPriceUSD) > 0)) {
-        const result = await recordSale(
-          item.skuId,
-          item.quantity,
-          Number(item.sellingPriceUSD),
-          channel,
-          clientName.trim(),
-          item.avgCostPKR,
-          item.avgExchangeRate || exchangeRate,
-          paymentMethod,
-        )
-        if (result?.error) {
-          toast.error(result.error)
-          return
-        }
+      const items = sizesToSell
+        .filter(s => s.quantity > 0 && Number(s.sellingPriceUSD) > 0)
+        .map(s => ({
+          sku_id: s.skuId,
+          quantity: s.quantity,
+          selling_price: Number(s.sellingPriceUSD),
+          cost_pkr: s.avgCostPKR,
+          exchange_rate: s.avgExchangeRate || exchangeRate,
+        }))
+      const result = await recordMultiSale(items, channel, clientName.trim(), paymentMethod)
+      if (result?.error) {
+        toast.error(result.error)
+        return
       }
       setSuccessSummary(summary)
       router.refresh()
