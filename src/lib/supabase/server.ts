@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/types";
 
+const TENANT_ID = process.env.TENANT_ID || "default";
+
 export async function getSupabaseServerClient() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("sb-access-token")?.value;
@@ -49,5 +51,12 @@ export async function getSupabaseServerClient() {
     }
   }
 
+  // Set tenant context for RLS policies
+  await client.rpc('set_tenant_id', { p_tenant_id: TENANT_ID });
+
   return client;
+}
+
+export function getTenantId(): string {
+  return TENANT_ID;
 }

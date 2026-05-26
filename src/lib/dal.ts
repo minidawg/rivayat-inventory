@@ -1,7 +1,7 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getSupabaseServerClient } from '@/lib/supabase/server'
+import { getSupabaseServerClient, getTenantId } from '@/lib/supabase/server'
 import { DEFAULT_PKR_TO_USD } from '@/lib/format'
 import type {
   SkuForStats,
@@ -43,7 +43,7 @@ export async function getExchangeRate(): Promise<number> {
           const client = await getSupabaseServerClient()
           await client
             .from('settings')
-            .upsert({ key: 'usd_rate', value: String(Math.round(rate)) }, { onConflict: 'key' })
+            .upsert({ key: 'usd_rate', value: String(Math.round(rate)), tenant_id: getTenantId() }, { onConflict: 'tenant_id,key' })
           return rate
         }
       }

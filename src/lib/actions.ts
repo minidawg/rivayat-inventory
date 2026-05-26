@@ -1,6 +1,6 @@
 'use server'
 
-import { getSupabaseServerClient } from '@/lib/supabase/server'
+import { getSupabaseServerClient, getTenantId } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { OVERHEAD_CATEGORIES, SIZES } from '@/lib/types'
 
@@ -395,7 +395,7 @@ export async function addBrand(name: string): Promise<{ error?: string }> {
   if (trimmed.length > 100) return { error: 'Brand name must be 100 characters or fewer.' }
   try {
     const client = await getSupabaseServerClient()
-    const { error } = await client.from('brands').insert({ name: trimmed })
+    const { error } = await client.from('brands').insert({ name: trimmed, tenant_id: getTenantId() })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}
@@ -515,6 +515,7 @@ export async function recordCost(
       amount,
       expense_date: expenseDate,
       notes: notes.trim() || null,
+      tenant_id: getTenantId(),
     })
     if (error) {
       console.error('[recordCost] insert failed:', error)
@@ -581,7 +582,7 @@ export async function updateSetting(key: string, value: string): Promise<{ error
     const client = await getSupabaseServerClient()
     const { error } = await client
       .from('settings')
-      .upsert({ key, value }, { onConflict: 'key' })
+      .upsert({ key, value, tenant_id: getTenantId() }, { onConflict: 'tenant_id,key' })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}

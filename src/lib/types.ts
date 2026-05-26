@@ -4,9 +4,9 @@ export type Database = {
   public: {
     Tables: {
       brands: {
-        Row:    { id: string; name: string }
-        Insert: { id?: string; name: string }
-        Update: { id?: string; name?: string }
+        Row:    { id: string; name: string; tenant_id: string }
+        Insert: { id?: string; name: string; tenant_id: string }
+        Update: { id?: string; name?: string; tenant_id?: string }
         Relationships: []
       }
       collections: {
@@ -40,15 +40,15 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'sales_sku_id_fkey'; columns: ['sku_id']; referencedRelation: 'skus'; referencedColumns: ['id'] }]
       }
       settings: {
-        Row:    { key: string; value: string }
-        Insert: { key: string; value: string }
-        Update: { key?: string; value?: string }
+        Row:    { key: string; value: string; tenant_id: string }
+        Insert: { key: string; value: string; tenant_id: string }
+        Update: { key?: string; value?: string; tenant_id?: string }
         Relationships: []
       }
       overheads: {
-        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null }
-        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null }
-        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null }
+        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null; tenant_id: string }
+        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null; tenant_id: string }
+        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null; tenant_id?: string }
         Relationships: []
       }
     }
