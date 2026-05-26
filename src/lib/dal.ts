@@ -280,14 +280,8 @@ export async function getAuditLog(limit = 50): Promise<AuditLogEntry[]> {
 
 export async function getAppChangelog(): Promise<ChangelogEntry[]> {
   try {
-    const client = await getSupabaseServerClient()
-    const { data } = await client
-      .from('settings')
-      .select('value')
-      .eq('key', 'app_changelog')
-      .maybeSingle()
-    if (!data?.value) return []
-    return JSON.parse(data.value) as ChangelogEntry[]
+    const entries = (await import('@/lib/changelog.json')).default
+    return [...entries].reverse() as ChangelogEntry[]
   } catch (error) {
     console.error('[getAppChangelog] failed:', error)
     return []

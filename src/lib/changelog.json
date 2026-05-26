@@ -1,0 +1,30 @@
+[
+  {
+    "date": "2026-05-26",
+    "author": "Claude Sonnet 4.6",
+    "changes": [
+      "Fixed RLS violation on overheads: current_tenant_id() now reads from JWT app_metadata instead of never-set session variable (migration 0005)",
+      "Fixed record_multi_sale scalar error: removed JSON.stringify — was passing text string to JSONB param causing jsonb_array_elements to fail",
+      "Renamed tenant from 'sister' to 'rivayat' — updated TENANT_ID env var, migrated all data rows in brands/settings/overheads",
+      "Added input validation to recordSale, recordMultiSale, stockIn (quantity > 0, price > 0, valid sizes, non-empty items array)",
+      "Wrapped updateSkuPaidStatus in try/catch with consistent { error? } return type",
+      "Added console.error logging to deleteSale and deletePurchase before re-throw",
+      "Removed dead x-tenant-id custom header from Supabase client (ignored by Supabase; tenant isolation comes from JWT)",
+      "Fixed TypeScript type for record_multi_sale p_items: string → Json to match JSONB parameter",
+      "Added audit_logs table with RLS — tracks all data mutations with user_id, user_email, action, summary, metadata",
+      "Fixed SECURITY DEFINER RPC tenant isolation: added tenant ownership guard inside record_sale_atomic and record_multi_sale",
+      "Added Developer Changelog and Recent Activity sections to Settings page"
+    ]
+  },
+  {
+    "date": "2026-05-27",
+    "author": "Claude Sonnet 4.6",
+    "changes": [
+      "Dashboard KPI cards: replaced 8 cards with 5 core metrics — Inventory Value, Total Revenue, Total Expenses, Total Cost, Net Profit",
+      "Dashboard charts: removed Profit by Brand donut; added Revenue by Channel panel with horizontal bars showing USD and % per channel",
+      "Terminology: renamed Record Cost → Record Expense and Cost Log → Expense Log in sidebar and page headers (routes and DB tables unchanged)",
+      "Moved developer changelog from DB (settings table) to static src/lib/changelog.json — no SQL needed to update it anymore",
+      "Confirmed low stock toggle logic (lowStockAlertsEnabled) fully intact after dashboard refactor"
+    ]
+  }
+]
