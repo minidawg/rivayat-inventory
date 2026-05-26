@@ -53,7 +53,32 @@ export type Database = {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      record_sale_atomic: {
+        Args: { p_sku_id: string; p_quantity: number; p_selling_price: number; p_cost_pkr: number; p_exchange_rate: number; p_channel?: string | null; p_client_name?: string | null; p_payment_method?: string | null }
+        Returns: { id?: string; remaining?: number; error?: string }
+      }
+      record_multi_sale: {
+        Args: { p_items: string; p_channel?: string | null; p_client_name?: string | null; p_payment_method?: string | null }
+        Returns: { success?: boolean; error?: string }
+      }
+      delete_sale_atomic: {
+        Args: { p_sale_id: string }
+        Returns: { success?: boolean; error?: string }
+      }
+      delete_purchase_atomic: {
+        Args: { p_purchase_id: string }
+        Returns: { success?: boolean; error?: string }
+      }
+      stock_in_sku: {
+        Args: { p_sku_id: string; p_quantity: number; p_total_cost_per_unit: number; p_exchange_rate: number }
+        Returns: undefined
+      }
+      set_tenant_id: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
+      }
+    }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }
