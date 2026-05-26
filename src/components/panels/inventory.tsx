@@ -135,6 +135,7 @@ export function Inventory({ inventory, brands, exchangeRate, lowStockAlertsEnabl
       a.click()
     } catch (err) {
       console.error('Export failed:', err)
+      toast.error('Export failed. Please try again.')
     } finally {
       setIsExporting(false)
     }
@@ -689,7 +690,7 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
                 <div>
                   <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Qty</div>
                   <Input type="number" min="0" value={row.qty} disabled={row.isDeleted}
-                    onChange={e => updateRow(row.id, 'qty', Number(e.target.value))}
+                    onChange={e => updateRow(row.id, 'qty', Math.max(0, Number(e.target.value)))}
                     onWheel={e => e.currentTarget.blur()}
                     className="h-8 bg-input border-border focus:border-primary/50 text-xs disabled:opacity-40" />
                 </div>
@@ -698,7 +699,7 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
                 <div>
                   <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Buffer</div>
                   <Input type="number" min="0" value={row.buffer} disabled={row.isDeleted}
-                    onChange={e => updateRow(row.id, 'buffer', Number(e.target.value))}
+                    onChange={e => updateRow(row.id, 'buffer', Math.max(0, Number(e.target.value)))}
                     onWheel={e => e.currentTarget.blur()}
                     className="h-8 bg-input border-border focus:border-primary/50 text-xs disabled:opacity-40" />
                 </div>
@@ -707,7 +708,7 @@ function EditModal({ item, brands, exchangeRate, onClose, onSuccess }: {
                 <div>
                   <div className="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-wider">Cost PKR</div>
                   <Input type="number" min="0" value={row.cost} disabled={row.isDeleted}
-                    onChange={e => updateRow(row.id, 'cost', Number(e.target.value))}
+                    onChange={e => updateRow(row.id, 'cost', Math.max(0, Number(e.target.value)))}
                     onWheel={e => e.currentTarget.blur()}
                     className="h-8 bg-input border-border focus:border-primary/50 text-xs disabled:opacity-40" />
                 </div>

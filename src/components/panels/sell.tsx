@@ -299,7 +299,7 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
                           <input
                             type="number" min="0" max={item.available}
                             value={item.quantity || ''}
-                            onChange={e => updateField(item.skuId, 'quantity', Number(e.target.value))}
+                            onChange={e => updateField(item.skuId, 'quantity', Math.max(0, Math.min(item.available, Number(e.target.value))))}
                             onWheel={e => e.currentTarget.blur()}
                             className="flex-1 bg-transparent text-center text-sm font-semibold tabular focus:outline-none w-0"
                           />

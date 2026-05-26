@@ -101,7 +101,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
   }
 
   async function handleSubmit() {
-    if (!collectionId || !articleName.trim() || !costPKR) return
+    if (!collectionId || !articleName.trim() || Number(costPKR) <= 0) return
     const valid = sizeRows.filter(r => r.quantity > 0)
     if (valid.length === 0) return
 
@@ -145,7 +145,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
     }
   }
 
-  const isValid = !!(collectionId && articleName.trim() && costPKR && sizeRows.some(r => r.quantity > 0))
+  const isValid = !!(collectionId && articleName.trim() && Number(costPKR) > 0 && sizeRows.some(r => r.quantity > 0))
 
   return (
     <div className="animate-fade-in">

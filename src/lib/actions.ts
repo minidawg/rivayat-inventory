@@ -83,6 +83,16 @@ export async function stockIn(
   imageUrl?: string,
 ): Promise<{ error?: string }> {
   try {
+    if (!costPKR || costPKR <= 0) throw new Error('Unit cost must be greater than 0.')
+    if (!sizes || sizes.length === 0) throw new Error('At least one size is required.')
+    // Validate ALL sizes upfront before any DB write to avoid partial commits
+    for (const { size, quantity } of sizes) {
+      if (!(SIZES as readonly string[]).includes(size))
+        throw new Error(`Invalid size: ${size}`)
+      if (quantity <= 0)
+        throw new Error(`Quantity must be greater than 0 for size ${size}`)
+    }
+
     const client = await getSupabaseServerClient()
     const totalCostPerUnit = costPKR + commissionPKR + shippingPKR
 
@@ -113,10 +123,6 @@ export async function stockIn(
     }
 
     for (const { size, quantity } of sizes) {
-      if (!(SIZES as readonly string[]).includes(size))
-        throw new Error(`Invalid size: ${size}`)
-      if (quantity <= 0)
-        throw new Error(`Quantity must be greater than 0 for size ${size}`)
       const { data: existingSku } = await client
         .from('skus')
         .select('id, quantity, avg_cost_pkr, avg_exchange_rate')
@@ -182,6 +188,22 @@ export async function stockIn(
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
+    // Clean up orphaned storage object if image was uploaded but DB writes failed
+    if (imageUrl) {
+      try {
+        const BUCKET_MARKER = '/product-images/'
+        const markerIdx = imageUrl.indexOf(BUCKET_MARKER)
+        if (markerIdx !== -1) {
+          const storagePath = imageUrl.slice(markerIdx + BUCKET_MARKER.length)
+          if (storagePath.startsWith('articles/')) {
+            const cleanupClient = await getSupabaseServerClient()
+            await cleanupClient.storage.from('product-images').remove([storagePath])
+          }
+        }
+      } catch {
+        console.error('[stockIn] failed to clean up orphaned image:', imageUrl)
+      }
+    }
     console.error('[stockIn] caught error:', e)
     return { error: e?.message || 'Failed to add stock. Please try again.' }
   }

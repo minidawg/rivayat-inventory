@@ -29,7 +29,11 @@
       "Expenses: added payment_method column (Cash/Zelle, default Cash) to overheads table — migration SQL provided to user",
       "Record Expense form: added Payment Method dropdown (Cash/Zelle, defaults to Cash), shown in summary sidebar, included in insert payload",
       "Expense Log: added Payment Method column with color-coded badges (green=Cash, violet=Zelle), editable inline, included in CSV export",
-      "Fixed multi-tenant RLS write violations: removed getTenantId() (process.env.TENANT_ID) from all insert/upsert payloads — tenant_id is now auto-filled by Postgres from the authenticated user's JWT via column DEFAULT (auth.jwt()->'app_metadata'->>'tenant_id') on brands, settings, overheads, audit_logs (migration 0007)"
+      "Fixed multi-tenant RLS write violations: removed getTenantId() (process.env.TENANT_ID) from all insert/upsert payloads — tenant_id is now auto-filled by Postgres from the authenticated user's JWT via column DEFAULT (auth.jwt()->'app_metadata'->>'tenant_id') on brands, settings, overheads, audit_logs (migration 0007)",
+      "Security audit — migration 0008: added tenant ownership guards to delete_sale_atomic, delete_purchase_atomic, and stock_in_sku RPCs (SECURITY DEFINER functions previously had no tenant check, allowing cross-tenant deletes/updates by anyone with a valid JWT and a target UUID)",
+      "stockIn: hoisted all size/quantity/cost validation before any DB writes to prevent partial commits on validation errors; added costPKR > 0 guard (zero cost silently corrupted avg_cost_pkr on all SKUs); image cleanup on DB failure to prevent orphaned storage objects",
+      "sell.tsx: clamped direct quantity input to [0, available] — previously bypassed the stepper's Math.min guard, allowing over-sell attempts that reached the DB",
+      "inventory.tsx: clamped qty/buffer/cost edit inputs to >= 0; added toast.error for CSV export failures (was silent console.error only)"
     ]
   }
 ]
