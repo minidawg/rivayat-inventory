@@ -7,7 +7,7 @@ export type Database = {
     Tables: {
       brands: {
         Row:    { id: string; name: string; tenant_id: string }
-        Insert: { id?: string; name: string; tenant_id: string }
+        Insert: { id?: string; name: string; tenant_id?: string }
         Update: { id?: string; name?: string; tenant_id?: string }
         Relationships: []
       }
@@ -43,19 +43,19 @@ export type Database = {
       }
       settings: {
         Row:    { key: string; value: string; tenant_id: string }
-        Insert: { key: string; value: string; tenant_id: string }
+        Insert: { key: string; value: string; tenant_id?: string }
         Update: { key?: string; value?: string; tenant_id?: string }
         Relationships: []
       }
       overheads: {
         Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null; tenant_id: string; payment_method: string | null }
-        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null; tenant_id: string; payment_method?: string | null }
+        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null; tenant_id?: string; payment_method?: string | null }
         Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null; tenant_id?: string; payment_method?: string | null }
         Relationships: []
       }
       audit_logs: {
         Row:    { id: string; created_at: string; tenant_id: string; user_id: string | null; user_email: string | null; action: string; table_name: string; record_id: string | null; summary: string; metadata: Json | null }
-        Insert: { id?: string; created_at?: string; tenant_id: string; user_id?: string | null; user_email?: string | null; action: string; table_name: string; record_id?: string | null; summary: string; metadata?: Json | null }
+        Insert: { id?: string; created_at?: string; tenant_id?: string; user_id?: string | null; user_email?: string | null; action: string; table_name: string; record_id?: string | null; summary: string; metadata?: Json | null }
         Update: { id?: string; created_at?: string; tenant_id?: string; user_id?: string | null; user_email?: string | null; action?: string; table_name?: string; record_id?: string | null; summary?: string; metadata?: Json | null }
         Relationships: []
       }

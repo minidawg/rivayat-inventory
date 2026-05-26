@@ -3,8 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/types";
 
-const TENANT_ID = process.env.TENANT_ID || "default";
-
 export async function getSupabaseServerClient() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("sb-access-token")?.value;
@@ -54,8 +52,4 @@ export async function getSupabaseServerClient() {
   }
 
   return client;
-}
-
-export function getTenantId(): string {
-  return TENANT_ID;
 }

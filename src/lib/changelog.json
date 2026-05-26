@@ -28,7 +28,8 @@
       "Dashboard layout: removed max-w-[960px] container constraint — KPI cards and charts now expand to fill available width next to sidebar",
       "Expenses: added payment_method column (Cash/Zelle, default Cash) to overheads table — migration SQL provided to user",
       "Record Expense form: added Payment Method dropdown (Cash/Zelle, defaults to Cash), shown in summary sidebar, included in insert payload",
-      "Expense Log: added Payment Method column with color-coded badges (green=Cash, violet=Zelle), editable inline, included in CSV export"
+      "Expense Log: added Payment Method column with color-coded badges (green=Cash, violet=Zelle), editable inline, included in CSV export",
+      "Fixed multi-tenant RLS write violations: removed getTenantId() (process.env.TENANT_ID) from all insert/upsert payloads — tenant_id is now auto-filled by Postgres from the authenticated user's JWT via column DEFAULT (auth.jwt()->'app_metadata'->>'tenant_id') on brands, settings, overheads, audit_logs (migration 0007)"
     ]
   }
 ]

@@ -1,6 +1,6 @@
 'use server'
 
-import { getSupabaseServerClient, getTenantId } from '@/lib/supabase/server'
+import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { OVERHEAD_CATEGORIES, SIZES } from '@/lib/types'
 // ─── Audit helper ─────────────────────────────────────────────────────────────
@@ -16,7 +16,6 @@ async function logAudit(
   try {
     const { data: { session } } = await client.auth.getSession()
     await client.from('audit_logs').insert({
-      tenant_id: getTenantId(),
       user_id: session?.user?.id ?? null,
       user_email: session?.user?.email ?? null,
       action,
@@ -460,7 +459,7 @@ export async function addBrand(name: string): Promise<{ error?: string }> {
   if (trimmed.length > 100) return { error: 'Brand name must be 100 characters or fewer.' }
   try {
     const client = await getSupabaseServerClient()
-    const { error } = await client.from('brands').insert({ name: trimmed, tenant_id: getTenantId() })
+    const { error } = await client.from('brands').insert({ name: trimmed })
     if (error) throw error
     await logAudit(client, 'brand_added', 'brands', null, `Added brand "${trimmed}"`)
     revalidatePath('/', 'layout')
@@ -597,7 +596,6 @@ export async function recordCost(
       expense_date: expenseDate,
       notes: notes.trim() || null,
       payment_method: paymentMethod || 'Cash',
-      tenant_id: getTenantId(),
     })
     if (error) {
       console.error('[recordCost] insert failed:', error)
@@ -670,7 +668,7 @@ export async function updateSetting(key: string, value: string): Promise<{ error
     const client = await getSupabaseServerClient()
     const { error } = await client
       .from('settings')
-      .upsert({ key, value, tenant_id: getTenantId() }, { onConflict: 'tenant_id,key' })
+      .upsert({ key, value }, { onConflict: 'tenant_id,key' })
     if (error) throw error
     await logAudit(client, 'setting_updated', 'settings', null, `Updated setting "${key}" = "${value}"`)
     revalidatePath('/', 'layout')
