@@ -10,6 +10,8 @@ import type {
   ArticleInventory,
   BrandWithCollections,
   OverheadRow,
+  AuditLogEntry,
+  ChangelogEntry,
 } from '@/lib/types'
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -248,6 +250,47 @@ export async function getTotalOverheads(): Promise<number> {
   } catch (error) {
     console.error('[getTotalOverheads] failed:', error)
     return 0
+  }
+}
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+export async function getAuditLog(limit = 50): Promise<AuditLogEntry[]> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { data } = await client
+      .from('audit_logs')
+      .select('id, created_at, user_email, action, table_name, summary')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (!data) return []
+    return (data as any[]).map((r) => ({
+      id: r.id,
+      createdAt: r.created_at,
+      userEmail: r.user_email,
+      action: r.action,
+      tableName: r.table_name,
+      summary: r.summary,
+    }))
+  } catch (error) {
+    console.error('[getAuditLog] failed:', error)
+    return []
+  }
+}
+
+export async function getAppChangelog(): Promise<ChangelogEntry[]> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { data } = await client
+      .from('settings')
+      .select('value')
+      .eq('key', 'app_changelog')
+      .maybeSingle()
+    if (!data?.value) return []
+    return JSON.parse(data.value) as ChangelogEntry[]
+  } catch (error) {
+    console.error('[getAppChangelog] failed:', error)
+    return []
   }
 }
 

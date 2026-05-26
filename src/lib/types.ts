@@ -53,6 +53,12 @@ export type Database = {
         Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null; tenant_id?: string }
         Relationships: []
       }
+      audit_logs: {
+        Row:    { id: string; created_at: string; tenant_id: string; user_id: string | null; user_email: string | null; action: string; table_name: string; record_id: string | null; summary: string; metadata: Json | null }
+        Insert: { id?: string; created_at?: string; tenant_id: string; user_id?: string | null; user_email?: string | null; action: string; table_name: string; record_id?: string | null; summary: string; metadata?: Json | null }
+        Update: { id?: string; created_at?: string; tenant_id?: string; user_id?: string | null; user_email?: string | null; action?: string; table_name?: string; record_id?: string | null; summary?: string; metadata?: Json | null }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -193,4 +199,19 @@ export interface BrandWithCollections {
   id: string
   name: string
   collections: { id: string; name: string }[]
+}
+
+export interface AuditLogEntry {
+  id: string
+  createdAt: string
+  userEmail: string | null
+  action: string
+  tableName: string
+  summary: string
+}
+
+export interface ChangelogEntry {
+  date: string
+  author: string
+  changes: string[]
 }

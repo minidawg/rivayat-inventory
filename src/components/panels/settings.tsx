@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { addBrand, deleteBrand, addCollection, deleteCollection, clearAllData, updateSetting } from '@/lib/actions'
-import type { BrandWithCollections } from '@/lib/types'
-import { ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle, Sparkles, Search, Check, Trash2, Bell, RefreshCw } from 'lucide-react'
+import type { BrandWithCollections, AuditLogEntry, ChangelogEntry } from '@/lib/types'
+import { ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle, Sparkles, Search, Check, Trash2, Bell, RefreshCw, Activity, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -14,10 +14,12 @@ interface SettingsProps {
   brands: BrandWithCollections[]
   lowStockAlerts: boolean
   usdRate: number
+  auditLog?: AuditLogEntry[]
+  changelog?: ChangelogEntry[]
   onSuccess?: () => void
 }
 
-export function Settings({ brands, lowStockAlerts, usdRate, onSuccess }: SettingsProps) {
+export function Settings({ brands, lowStockAlerts, usdRate, auditLog = [], changelog = [], onSuccess }: SettingsProps) {
   const router = useRouter()
 
   const [lowStockEnabled,    setLowStockEnabled]    = useState(lowStockAlerts)
@@ -414,6 +416,68 @@ export function Settings({ brands, lowStockAlerts, usdRate, onSuccess }: Setting
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-6 mb-5">
+        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Activity className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold leading-none">Recent Activity</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Last {auditLog.length} data changes tracked by user</p>
+          </div>
+        </div>
+        {auditLog.length === 0 ? (
+          <p className="text-sm text-muted-foreground/50 text-center py-4">No activity recorded yet</p>
+        ) : (
+          <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+            {auditLog.map((entry) => (
+              <div key={entry.id} className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-white/[0.03] transition-colors">
+                <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-primary/50 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-foreground/80 leading-snug">{entry.summary}</p>
+                  <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                    {entry.userEmail ?? 'unknown user'} · {new Date(entry.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Developer Changelog */}
+      <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[#141414] p-6 mb-5">
+        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <BookOpen className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold leading-none">Developer Changelog</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">All code and system changes made to this app</p>
+          </div>
+        </div>
+        {changelog.length === 0 ? (
+          <p className="text-sm text-muted-foreground/50 text-center py-4">No changelog entries yet</p>
+        ) : (
+          <div className="space-y-5">
+            {changelog.map((entry, i) => (
+              <div key={i}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-primary">{entry.date}</span>
+                  <span className="text-[10px] text-muted-foreground/50">by {entry.author}</span>
+                </div>
+                <ul className="space-y-1.5 pl-3 border-l border-white/8">
+                  {entry.changes.map((change, j) => (
+                    <li key={j} className="text-[11px] text-muted-foreground leading-snug">{change}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Danger Zone */}

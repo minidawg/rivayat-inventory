@@ -3,6 +3,32 @@
 import { getSupabaseServerClient, getTenantId } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { OVERHEAD_CATEGORIES, SIZES } from '@/lib/types'
+// ─── Audit helper ─────────────────────────────────────────────────────────────
+
+async function logAudit(
+  client: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  action: string,
+  tableName: string,
+  recordId: string | null,
+  summary: string,
+  metadata?: Record<string, unknown>,
+) {
+  try {
+    const { data: { session } } = await client.auth.getSession()
+    await client.from('audit_logs').insert({
+      tenant_id: getTenantId(),
+      user_id: session?.user?.id ?? null,
+      user_email: session?.user?.email ?? null,
+      action,
+      table_name: tableName,
+      record_id: recordId,
+      summary,
+      metadata: (metadata ?? null) as any,
+    })
+  } catch (e) {
+    console.error('[logAudit] non-fatal failure:', e)
+  }
+}
 
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
@@ -151,6 +177,9 @@ export async function stockIn(
       }
     }
 
+    await logAudit(client, 'stock_in', 'purchases', null,
+      `Stocked in ${sizes.map(s => `${s.quantity}×${s.size}`).join(', ')} of "${articleName}"`,
+      { collectionId, costPKR, exchangeRate, source })
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -189,6 +218,9 @@ export async function recordSale(
     })
     if (error) return { error: `Network error: Sale not recorded. ${error.message}` }
     if (data?.error) return { error: data.error }
+    await logAudit(client, 'sale_recorded', 'sales', data?.id ?? null,
+      `Sold ${quantity}× SKU via ${channel || 'unknown'} at $${sellingPriceUSD}`,
+      { skuId, quantity, sellingPriceUSD, channel, clientName, paymentMethod })
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -219,6 +251,9 @@ export async function recordMultiSale(
     })
     if (error) return { error: `Network error: Sale not recorded. ${error.message}` }
     if (data?.error) return { error: data.error }
+    await logAudit(client, 'multi_sale_recorded', 'sales', null,
+      `Multi-sale: ${items.length} item(s) via ${channel || 'unknown'}`,
+      { itemCount: items.length, channel, clientName, paymentMethod })
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -237,6 +272,7 @@ export async function deleteSale(saleId: string): Promise<{ error?: string }> {
       throw error
     }
     if (data?.error) return { error: data.error }
+    await logAudit(client, 'sale_deleted', 'sales', saleId, `Deleted sale ${saleId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -255,6 +291,7 @@ export async function deletePurchase(purchaseId: string): Promise<{ error?: stri
       throw error
     }
     if (data?.error) return { error: data.error }
+    await logAudit(client, 'purchase_deleted', 'purchases', purchaseId, `Deleted purchase ${purchaseId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -269,6 +306,7 @@ export async function updateSKUQuantity(skuId: string, quantity: number): Promis
     const client = await getSupabaseServerClient()
     const { error } = await client.from('skus').update({ quantity }).eq('id', skuId)
     if (error) throw error
+    await logAudit(client, 'sku_quantity_updated', 'skus', skuId, `Set quantity to ${quantity} for SKU ${skuId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -292,6 +330,7 @@ export async function updateSku(
       console.error('[updateSku] failed:', error)
       throw new Error(error.message)
     }
+    await logAudit(client, 'sku_updated', 'skus', skuId, `Updated SKU ${skuId}`, updates as Record<string, unknown>)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -307,6 +346,7 @@ export async function deleteSku(skuId: string): Promise<{ error?: string }> {
       console.error('[deleteSku] failed:', error)
       throw new Error(error.message)
     }
+    await logAudit(client, 'sku_deleted', 'skus', skuId, `Deleted SKU ${skuId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -340,6 +380,8 @@ export async function addSku(
       console.error('[addSku] failed:', error)
       throw new Error(error.message)
     }
+    await logAudit(client, 'sku_added', 'skus', null,
+      `Added size ${size} (qty ${quantity}) to article ${articleId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -372,7 +414,7 @@ export async function deleteArticleImage(
       console.error('[deleteArticleImage] db update failed:', error)
       throw new Error(error.message)
     }
-
+    await logAudit(client, 'article_image_deleted', 'articles', articleId, `Removed image from article ${articleId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -388,6 +430,7 @@ export async function updateArticle(
     const client = await getSupabaseServerClient()
     const { error } = await client.from('articles').update(updates).eq('id', articleId)
     if (error) throw error
+    await logAudit(client, 'article_updated', 'articles', articleId, `Updated article ${articleId}`, updates as Record<string, unknown>)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -401,6 +444,7 @@ export async function deleteArticle(articleId: string): Promise<{ error?: string
     // Deletes by the article's UUID primary key — cascade removes its SKUs, purchases, and sales
     const { error } = await client.from('articles').delete().eq('id', articleId)
     if (error) throw error
+    await logAudit(client, 'article_deleted', 'articles', articleId, `Deleted article ${articleId} and all its SKUs, purchases, and sales`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -418,6 +462,7 @@ export async function addBrand(name: string): Promise<{ error?: string }> {
     const client = await getSupabaseServerClient()
     const { error } = await client.from('brands').insert({ name: trimmed, tenant_id: getTenantId() })
     if (error) throw error
+    await logAudit(client, 'brand_added', 'brands', null, `Added brand "${trimmed}"`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -430,6 +475,7 @@ export async function deleteBrand(brandId: string): Promise<{ error?: string }> 
     const client = await getSupabaseServerClient()
     const { error } = await client.from('brands').delete().eq('id', brandId)
     if (error) throw error
+    await logAudit(client, 'brand_deleted', 'brands', brandId, `Deleted brand ${brandId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -446,6 +492,7 @@ export async function addCollection(name: string, brandId: string): Promise<{ er
     const client = await getSupabaseServerClient()
     const { error } = await client.from('collections').insert({ name: trimmed, brand_id: brandId })
     if (error) throw error
+    await logAudit(client, 'collection_added', 'collections', null, `Added collection "${trimmed}" to brand ${brandId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -458,6 +505,7 @@ export async function deleteCollection(collectionId: string): Promise<{ error?: 
     const client = await getSupabaseServerClient()
     const { error } = await client.from('collections').delete().eq('id', collectionId)
     if (error) throw error
+    await logAudit(client, 'collection_deleted', 'collections', collectionId, `Deleted collection ${collectionId}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -473,6 +521,7 @@ export async function clearAllData(confirmation: string): Promise<{ error?: stri
     await client.from('purchases').delete().not('id', 'is', null)
     await client.from('skus').delete().not('id', 'is', null)
     await client.from('articles').delete().not('id', 'is', null)
+    await logAudit(client, 'all_data_cleared', '*', null, 'CLEARED ALL inventory data (articles, SKUs, purchases, sales)')
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -493,6 +542,8 @@ export async function updateSkuPaidStatus(skuId: string, paidToWajid: boolean): 
       console.error('[updateSkuPaidStatus] update failed:', error)
       throw error
     }
+    await logAudit(client, 'paid_status_updated', 'purchases', skuId,
+      `Marked SKU ${skuId} as ${paidToWajid ? 'paid' : 'unpaid'} to Wajid`)
     return {}
   } catch (e: any) {
     return { error: e?.message || 'Failed to update paid status.' }
@@ -550,6 +601,9 @@ export async function recordCost(
       console.error('[recordCost] insert failed:', error)
       throw error
     }
+    await logAudit(client, 'cost_recorded', 'overheads', null,
+      `Recorded ${category} cost of PKR ${amount} on ${expenseDate}`,
+      { category, amount, expenseDate })
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -566,6 +620,7 @@ export async function deleteOverhead(id: string): Promise<{ error?: string }> {
       console.error('[deleteOverhead] delete failed:', error)
       throw error
     }
+    await logAudit(client, 'cost_deleted', 'overheads', id, `Deleted overhead entry ${id}`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -597,6 +652,7 @@ export async function updateOverhead(
       console.error('[updateOverhead] update failed:', error)
       throw error
     }
+    await logAudit(client, 'cost_updated', 'overheads', id, `Updated overhead entry ${id}`, patch as Record<string, unknown>)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -613,6 +669,7 @@ export async function updateSetting(key: string, value: string): Promise<{ error
       .from('settings')
       .upsert({ key, value, tenant_id: getTenantId() }, { onConflict: 'tenant_id,key' })
     if (error) throw error
+    await logAudit(client, 'setting_updated', 'settings', null, `Updated setting "${key}" = "${value}"`)
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
