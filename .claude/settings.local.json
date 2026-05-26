@@ -28,7 +28,13 @@
       "Bash(\"D:/Hamza/Self/Development/Node JS/node-v24.15.0-win-x64/node.exe\" node_modules/typescript/bin/tsc --noEmit)",
       "Bash(git merge *)",
       "Bash(git commit *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(npx next *)",
+      "PowerShell(Get-Process *)",
+      "Bash(git log *)",
+      "Bash(findstr /v \"SECRET\\\\|KEY\\\\|PASSWORD\\\\|TOKEN\\\\|JWT\")",
+      "Bash(ping -n 4 127.0.0.1)",
+      "Bash(Select-String -Path .env.local -Pattern \"TENANT_ID\")"
     ]
   }
 }
