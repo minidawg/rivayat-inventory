@@ -147,6 +147,16 @@ VALUES ('rivayat', 'app_changelog', '[
       "Fixed SECURITY DEFINER RPC tenant isolation: added tenant ownership guard inside record_sale_atomic and record_multi_sale",
       "Added Developer Changelog and Recent Activity sections to Settings page"
     ]
+  },
+  {
+    "date": "2026-05-27",
+    "author": "Claude Sonnet 4.6",
+    "changes": [
+      "Dashboard KPI cards: replaced 8 cards with 5 core metrics — Inventory Value, Total Revenue, Total Expenses, Total Cost, Net Profit",
+      "Dashboard charts: removed Profit by Brand donut; added Revenue by Channel panel with horizontal bars showing USD and % per channel",
+      "Terminology: renamed Record Cost → Record Expense and Cost Log → Expense Log in sidebar and page headers (routes and DB tables unchanged)",
+      "Confirmed low stock toggle logic (lowStockAlertsEnabled) fully intact after dashboard refactor"
+    ]
   }
 ]')
 ON CONFLICT (tenant_id, key) DO UPDATE SET value = EXCLUDED.value;
