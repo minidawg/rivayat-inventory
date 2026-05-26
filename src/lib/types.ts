@@ -4,9 +4,9 @@ export type Database = {
   public: {
     Tables: {
       brands: {
-        Row:    { id: string; name: string }
-        Insert: { id?: string; name: string }
-        Update: { id?: string; name?: string }
+        Row:    { id: string; name: string; tenant_id: string }
+        Insert: { id?: string; name: string; tenant_id: string }
+        Update: { id?: string; name?: string; tenant_id?: string }
         Relationships: []
       }
       collections: {
@@ -40,20 +40,45 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'sales_sku_id_fkey'; columns: ['sku_id']; referencedRelation: 'skus'; referencedColumns: ['id'] }]
       }
       settings: {
-        Row:    { key: string; value: string }
-        Insert: { key: string; value: string }
-        Update: { key?: string; value?: string }
+        Row:    { key: string; value: string; tenant_id: string }
+        Insert: { key: string; value: string; tenant_id: string }
+        Update: { key?: string; value?: string; tenant_id?: string }
         Relationships: []
       }
       overheads: {
-        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null }
-        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null }
-        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null }
+        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null; tenant_id: string }
+        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null; tenant_id: string }
+        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null; tenant_id?: string }
         Relationships: []
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      record_sale_atomic: {
+        Args: { p_sku_id: string; p_quantity: number; p_selling_price: number; p_cost_pkr: number; p_exchange_rate: number; p_channel?: string | null; p_client_name?: string | null; p_payment_method?: string | null }
+        Returns: { id?: string; remaining?: number; error?: string }
+      }
+      record_multi_sale: {
+        Args: { p_items: string; p_channel?: string | null; p_client_name?: string | null; p_payment_method?: string | null }
+        Returns: { success?: boolean; error?: string }
+      }
+      delete_sale_atomic: {
+        Args: { p_sale_id: string }
+        Returns: { success?: boolean; error?: string }
+      }
+      delete_purchase_atomic: {
+        Args: { p_purchase_id: string }
+        Returns: { success?: boolean; error?: string }
+      }
+      stock_in_sku: {
+        Args: { p_sku_id: string; p_quantity: number; p_total_cost_per_unit: number; p_exchange_rate: number }
+        Returns: undefined
+      }
+      set_tenant_id: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
+      }
+    }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
   }

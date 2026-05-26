@@ -1,7 +1,7 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getSupabaseServerClient } from '@/lib/supabase/server'
+import { getSupabaseServerClient, getTenantId } from '@/lib/supabase/server'
 import { DEFAULT_PKR_TO_USD } from '@/lib/format'
 import type {
   SkuForStats,
@@ -43,11 +43,12 @@ export async function getExchangeRate(): Promise<number> {
           const client = await getSupabaseServerClient()
           await client
             .from('settings')
-            .upsert({ key: 'usd_rate', value: String(Math.round(rate)) }, { onConflict: 'key' })
+            .upsert({ key: 'usd_rate', value: String(Math.round(rate)), tenant_id: getTenantId() }, { onConflict: 'tenant_id,key' })
           return rate
         }
       }
-    } catch {
+    } catch (error) {
+      console.error('[getExchangeRate] API fetch failed:', error)
       // fall through to DB
     }
   }
@@ -59,7 +60,8 @@ export async function getExchangeRate(): Promise<number> {
       .eq('key', 'usd_rate')
       .maybeSingle()
     return Number(data?.value) || DEFAULT_PKR_TO_USD
-  } catch {
+  } catch (error) {
+    console.error('[getExchangeRate] DB fallback failed:', error)
     return DEFAULT_PKR_TO_USD
   }
 }
@@ -74,7 +76,8 @@ export async function getSettings(): Promise<{ lowStockAlerts: boolean; usdRate:
       lowStockAlerts: map['low_stock_alerts'] !== 'false',
       usdRate: Number(map['usd_rate']) || DEFAULT_PKR_TO_USD,
     }
-  } catch {
+  } catch (error) {
+    console.error('[getSettings] failed:', error)
     return { lowStockAlerts: true, usdRate: DEFAULT_PKR_TO_USD }
   }
 }
@@ -114,7 +117,8 @@ export async function getInventory(): Promise<ArticleInventory[]> {
         paidToWajid: !(s.purchases ?? []).some((p: any) => p.paid_to_wajid === false),
       })),
     }))
-  } catch {
+  } catch (error) {
+    console.error('[getInventory] failed:', error)
     return []
   }
 }
@@ -130,7 +134,8 @@ export async function getSkuStats(): Promise<SkuForStats[]> {
       lowStockBuffer: s.low_stock_buffer,
       avgCostPKR: s.avg_cost_pkr ?? 0,
     }))
-  } catch {
+  } catch (error) {
+    console.error('[getSkuStats] failed:', error)
     return []
   }
 }
@@ -166,7 +171,8 @@ export async function getSales(): Promise<SaleRow[]> {
       articleName: s.skus?.articles?.name ?? '',
       brandName: s.skus?.articles?.collections?.brands?.name ?? '',
     }))
-  } catch {
+  } catch (error) {
+    console.error('[getSales] failed:', error)
     return []
   }
 }
@@ -203,7 +209,8 @@ export async function getPurchases(): Promise<PurchaseRow[]> {
       brandName: p.skus?.articles?.collections?.brands?.name ?? '',
       collectionName: p.skus?.articles?.collections?.name ?? '',
     }))
-  } catch {
+  } catch (error) {
+    console.error('[getPurchases] failed:', error)
     return []
   }
 }
@@ -226,7 +233,8 @@ export async function getOverheads(): Promise<OverheadRow[]> {
       expenseDate: r.expense_date,
       notes: r.notes ?? null,
     }))
-  } catch {
+  } catch (error) {
+    console.error('[getOverheads] failed:', error)
     return []
   }
 }
@@ -237,7 +245,8 @@ export async function getTotalOverheads(): Promise<number> {
     const { data } = await client.from('overheads').select('amount')
     if (!data) return 0
     return (data as any[]).reduce((s: number, x: any) => s + (Number(x.amount) || 0), 0)
-  } catch {
+  } catch (error) {
+    console.error('[getTotalOverheads] failed:', error)
     return 0
   }
 }
@@ -259,7 +268,8 @@ export async function getBrands(): Promise<BrandWithCollections[]> {
       name: b.name,
       collections: (b.collections ?? []).map((c: any) => ({ id: c.id, name: c.name })),
     }))
-  } catch {
+  } catch (error) {
+    console.error('[getBrands] failed:', error)
     return []
   }
 }

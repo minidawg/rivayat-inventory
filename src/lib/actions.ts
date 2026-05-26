@@ -1,8 +1,8 @@
 'use server'
 
-import { getSupabaseServerClient } from '@/lib/supabase/server'
+import { getSupabaseServerClient, getTenantId } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { OVERHEAD_CATEGORIES } from '@/lib/types'
+import { OVERHEAD_CATEGORIES, SIZES } from '@/lib/types'
 
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
@@ -116,16 +116,12 @@ export async function stockIn(
         }
         skuId = newSku.id
       } else {
-        const newQty = existingSku.quantity + quantity
-        const newAvgCost =
-          (existingSku.avg_cost_pkr * existingSku.quantity + totalCostPerUnit * quantity) / newQty
-        const newAvgRate =
-          (existingSku.avg_exchange_rate * existingSku.quantity + exchangeRate * quantity) / newQty
-
-        const { error } = await client
-          .from('skus')
-          .update({ quantity: newQty, avg_cost_pkr: newAvgCost, avg_exchange_rate: newAvgRate })
-          .eq('id', existingSku.id)
+        const { error } = await client.rpc('stock_in_sku', {
+          p_sku_id: existingSku.id,
+          p_quantity: quantity,
+          p_total_cost_per_unit: totalCostPerUnit,
+          p_exchange_rate: exchangeRate,
+        })
         if (error) {
           console.error('[stockIn] sku update failed:', error)
           throw new Error(`SKU update failed (${size}): ${error.message}`)
@@ -160,9 +156,6 @@ export async function stockIn(
 }
 
 // ─── Record Sale ─────────────────────────────────────────────────────────────
-// FIX: Insert into sales FIRST (atomic safety). Only decrement inventory after
-// the sale record is successfully committed. If the sales insert fails, inventory
-// is never touched and no data is lost.
 
 export async function recordSale(
   skuId: string,
@@ -176,45 +169,41 @@ export async function recordSale(
 ): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
-
-    // Verify the exact SKU row by its UUID (not by name or product SKU)
-    const { data: sku, error: skuError } = await client
-      .from('skus')
-      .select('quantity')
-      .eq('id', skuId)
-      .single()
-
-    if (skuError || !sku) return { error: 'SKU not found. Please refresh and try again.' }
-    if (sku.quantity < quantity) {
-      return { error: `Insufficient stock. Available: ${sku.quantity}, requested: ${quantity}.` }
-    }
-
-    // STEP 1: Insert the sale record first. If this fails, abort entirely.
-    const { error: saleError } = await client.from('sales').insert({
-      sku_id: skuId,
-      quantity,
-      selling_price: sellingPriceUSD,
-      cost_pkr_at_sale: avgCostPKR,
-      exchange_rate_at_sale: exchangeRate,
-      channel: channel || null,
-      client_name: clientName || null,
-      payment_method: paymentMethod || null,
+    const { data, error } = await client.rpc('record_sale_atomic', {
+      p_sku_id: skuId,
+      p_quantity: quantity,
+      p_selling_price: sellingPriceUSD,
+      p_cost_pkr: avgCostPKR,
+      p_exchange_rate: exchangeRate,
+      p_channel: channel || null,
+      p_client_name: clientName || null,
+      p_payment_method: paymentMethod || null,
     })
-    if (saleError) {
-      return { error: `Network error: Sale not recorded. ${saleError.message}` }
-    }
+    if (error) return { error: `Network error: Sale not recorded. ${error.message}` }
+    if (data?.error) return { error: data.error }
+    revalidatePath('/', 'layout')
+    return {}
+  } catch (e: any) {
+    return { error: e?.message || 'Network error: Sale not recorded. Please try again.' }
+  }
+}
 
-    // STEP 2: Only decrement inventory after the sale is confirmed committed.
-    const { error: updateError } = await client
-      .from('skus')
-      .update({ quantity: sku.quantity - quantity })
-      .eq('id', skuId)
-    if (updateError) {
-      return {
-        error: `Sale recorded but inventory count not updated: ${updateError.message}. Please adjust manually in Inventory.`,
-      }
-    }
-
+export async function recordMultiSale(
+  items: { sku_id: string; quantity: number; selling_price: number; cost_pkr: number; exchange_rate: number }[],
+  channel: string,
+  clientName: string,
+  paymentMethod: string,
+): Promise<{ error?: string }> {
+  try {
+    const client = await getSupabaseServerClient()
+    const { data, error } = await client.rpc('record_multi_sale', {
+      p_items: JSON.stringify(items),
+      p_channel: channel || null,
+      p_client_name: clientName || null,
+      p_payment_method: paymentMethod || null,
+    })
+    if (error) return { error: `Network error: Sale not recorded. ${error.message}` }
+    if (data?.error) return { error: data.error }
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -227,32 +216,9 @@ export async function recordSale(
 export async function deleteSale(saleId: string): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
-
-    const { data: sale } = await client
-      .from('sales')
-      .select('sku_id, quantity')
-      .eq('id', saleId)
-      .maybeSingle()
-
-    if (sale) {
-      const { data: sku } = await client
-        .from('skus')
-        .select('quantity')
-        .eq('id', sale.sku_id)
-        .maybeSingle()
-      if (sku) {
-        const { error } = await client
-          .from('skus')
-          .update({ quantity: sku.quantity + sale.quantity })
-          .eq('id', sale.sku_id)
-        if (error) throw error
-      }
-    }
-
-    // Delete targets the exact row by its UUID primary key
-    const { error } = await client.from('sales').delete().eq('id', saleId)
+    const { data, error } = await client.rpc('delete_sale_atomic', { p_sale_id: saleId })
     if (error) throw error
-
+    if (data?.error) return { error: data.error }
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -265,32 +231,9 @@ export async function deleteSale(saleId: string): Promise<{ error?: string }> {
 export async function deletePurchase(purchaseId: string): Promise<{ error?: string }> {
   try {
     const client = await getSupabaseServerClient()
-
-    const { data: purchase } = await client
-      .from('purchases')
-      .select('sku_id, quantity')
-      .eq('id', purchaseId)
-      .maybeSingle()
-
-    if (purchase) {
-      const { data: sku } = await client
-        .from('skus')
-        .select('quantity')
-        .eq('id', purchase.sku_id)
-        .maybeSingle()
-      if (sku) {
-        const { error } = await client
-          .from('skus')
-          .update({ quantity: Math.max(0, sku.quantity - purchase.quantity) })
-          .eq('id', purchase.sku_id)
-        if (error) throw error
-      }
-    }
-
-    // Delete targets the exact row by its UUID primary key — never by sku_id or name
-    const { error } = await client.from('purchases').delete().eq('id', purchaseId)
+    const { data, error } = await client.rpc('delete_purchase_atomic', { p_purchase_id: purchaseId })
     if (error) throw error
-
+    if (data?.error) return { error: data.error }
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -358,8 +301,7 @@ export async function addSku(
   avgCostPKR: number,
   avgExchangeRate: number,
 ): Promise<{ error?: string }> {
-  const VALID_SIZES = ['XS','S','M','L','XL','XXL','XXXL','34','36','38','40','42','44','46']
-  if (!VALID_SIZES.includes(size)) return { error: `Invalid size: ${size}` }
+  if (!(SIZES as readonly string[]).includes(size)) return { error: `Invalid size: ${size}` }
   if (quantity < 0)       return { error: 'Quantity cannot be negative.' }
   if (lowStockBuffer < 0) return { error: 'Buffer cannot be negative.' }
 
@@ -448,9 +390,12 @@ export async function deleteArticle(articleId: string): Promise<{ error?: string
 // ─── Brands & Collections ─────────────────────────────────────────────────────
 
 export async function addBrand(name: string): Promise<{ error?: string }> {
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Brand name cannot be empty.' }
+  if (trimmed.length > 100) return { error: 'Brand name must be 100 characters or fewer.' }
   try {
     const client = await getSupabaseServerClient()
-    const { error } = await client.from('brands').insert({ name })
+    const { error } = await client.from('brands').insert({ name: trimmed, tenant_id: getTenantId() })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}
@@ -472,9 +417,13 @@ export async function deleteBrand(brandId: string): Promise<{ error?: string }> 
 }
 
 export async function addCollection(name: string, brandId: string): Promise<{ error?: string }> {
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Collection name cannot be empty.' }
+  if (trimmed.length > 100) return { error: 'Collection name must be 100 characters or fewer.' }
+  if (!brandId) return { error: 'Brand is required.' }
   try {
     const client = await getSupabaseServerClient()
-    const { error } = await client.from('collections').insert({ name, brand_id: brandId })
+    const { error } = await client.from('collections').insert({ name: trimmed, brand_id: brandId })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}
@@ -495,7 +444,8 @@ export async function deleteCollection(collectionId: string): Promise<{ error?: 
   }
 }
 
-export async function clearAllData(): Promise<{ error?: string }> {
+export async function clearAllData(confirmation: string): Promise<{ error?: string }> {
+  if (confirmation !== 'DELETE') return { error: 'Confirmation text does not match.' }
   try {
     const client = await getSupabaseServerClient()
     await client.from('sales').delete().not('id', 'is', null)
@@ -565,6 +515,7 @@ export async function recordCost(
       amount,
       expense_date: expenseDate,
       notes: notes.trim() || null,
+      tenant_id: getTenantId(),
     })
     if (error) {
       console.error('[recordCost] insert failed:', error)
@@ -631,7 +582,7 @@ export async function updateSetting(key: string, value: string): Promise<{ error
     const client = await getSupabaseServerClient()
     const { error } = await client
       .from('settings')
-      .upsert({ key, value }, { onConflict: 'key' })
+      .upsert({ key, value, tenant_id: getTenantId() }, { onConflict: 'tenant_id,key' })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}
