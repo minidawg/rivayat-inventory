@@ -584,6 +584,7 @@ export async function recordCost(
   amount: number,
   expenseDate: string,
   notes: string,
+  paymentMethod: string,
 ): Promise<{ error?: string }> {
   try {
     if (!OVERHEAD_CATEGORIES.includes(category as any)) return { error: 'Invalid category.' }
@@ -595,6 +596,7 @@ export async function recordCost(
       amount,
       expense_date: expenseDate,
       notes: notes.trim() || null,
+      payment_method: paymentMethod || 'Cash',
       tenant_id: getTenantId(),
     })
     if (error) {
@@ -602,8 +604,8 @@ export async function recordCost(
       throw error
     }
     await logAudit(client, 'cost_recorded', 'overheads', null,
-      `Recorded ${category} cost of PKR ${amount} on ${expenseDate}`,
-      { category, amount, expenseDate })
+      `Recorded ${category} cost of $${amount} on ${expenseDate} via ${paymentMethod || 'Cash'}`,
+      { category, amount, expenseDate, paymentMethod })
     revalidatePath('/', 'layout')
     return {}
   } catch (e: any) {
@@ -630,7 +632,7 @@ export async function deleteOverhead(id: string): Promise<{ error?: string }> {
 
 export async function updateOverhead(
   id: string,
-  updates: { category?: string; amount?: number; expenseDate?: string; notes?: string },
+  updates: { category?: string; amount?: number; expenseDate?: string; notes?: string; paymentMethod?: string },
 ): Promise<{ error?: string }> {
   try {
     if (!id) return { error: 'ID is required.' }
@@ -640,11 +642,12 @@ export async function updateOverhead(
       return { error: 'Amount must be greater than 0.' }
     if (updates.expenseDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(updates.expenseDate))
       return { error: 'Invalid date.' }
-    const patch: { category?: string; amount?: number; expense_date?: string; notes?: string | null } = {}
-    if (updates.category !== undefined)     patch.category     = updates.category
-    if (updates.amount !== undefined)       patch.amount       = updates.amount
-    if (updates.expenseDate !== undefined)  patch.expense_date = updates.expenseDate
-    if (updates.notes !== undefined)        patch.notes        = updates.notes.trim() || null
+    const patch: { category?: string; amount?: number; expense_date?: string; notes?: string | null; payment_method?: string } = {}
+    if (updates.category !== undefined)       patch.category       = updates.category
+    if (updates.amount !== undefined)         patch.amount         = updates.amount
+    if (updates.expenseDate !== undefined)    patch.expense_date   = updates.expenseDate
+    if (updates.notes !== undefined)          patch.notes          = updates.notes.trim() || null
+    if (updates.paymentMethod !== undefined)  patch.payment_method = updates.paymentMethod
     if (Object.keys(patch).length === 0)    return {}
     const client = await getSupabaseServerClient()
     const { error } = await client.from('overheads').update(patch).eq('id', id)

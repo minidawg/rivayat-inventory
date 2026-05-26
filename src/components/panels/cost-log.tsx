@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatUSD, formatDate } from '@/lib/data'
 import { deleteOverhead, updateOverhead } from '@/lib/actions'
-import { OVERHEAD_CATEGORIES } from '@/lib/types'
+import { OVERHEAD_CATEGORIES, PAYMENT_METHODS } from '@/lib/types'
 import type { OverheadRow } from '@/lib/types'
 import { Download, Receipt, Calendar, TrendingDown, Trash2, Loader2, Pencil, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -32,10 +32,11 @@ export function CostLog({ overheads }: CostLogProps) {
   const [savingId,      setSavingId]      = useState<string | null>(null)
 
   // Edit state
-  const [editCategory,  setEditCategory]  = useState('')
-  const [editAmount,    setEditAmount]    = useState('')
-  const [editDate,      setEditDate]      = useState('')
-  const [editNotes,     setEditNotes]     = useState('')
+  const [editCategory,      setEditCategory]      = useState('')
+  const [editAmount,        setEditAmount]        = useState('')
+  const [editDate,          setEditDate]          = useState('')
+  const [editNotes,         setEditNotes]         = useState('')
+  const [editPaymentMethod, setEditPaymentMethod] = useState('')
 
   const filtered = useMemo(() => {
     let list = overheads
@@ -67,6 +68,7 @@ export function CostLog({ overheads }: CostLogProps) {
     setEditAmount(String(row.amount))
     setEditDate(row.expenseDate)
     setEditNotes(row.notes ?? '')
+    setEditPaymentMethod(row.paymentMethod ?? 'Cash')
     setConfirmId(null)
   }
 
@@ -84,6 +86,7 @@ export function CostLog({ overheads }: CostLogProps) {
         amount,
         expenseDate: editDate,
         notes: editNotes,
+        paymentMethod: editPaymentMethod,
       })
       if (result?.error) {
         toast.error(result.error)
@@ -117,9 +120,9 @@ export function CostLog({ overheads }: CostLogProps) {
   }
 
   function exportCSV() {
-    const rows = [['Date', 'Category', 'Amount (USD)', 'Notes']]
+    const rows = [['Date', 'Category', 'Amount (USD)', 'Payment Method', 'Notes']]
     for (const r of filtered) {
-      rows.push([r.expenseDate, r.category, r.amount.toFixed(2), r.notes ?? ''])
+      rows.push([r.expenseDate, r.category, r.amount.toFixed(2), r.paymentMethod ?? 'Cash', r.notes ?? ''])
     }
     const a = document.createElement('a')
     a.href = URL.createObjectURL(
@@ -203,7 +206,7 @@ export function CostLog({ overheads }: CostLogProps) {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-white/5 bg-white/[0.015]">
-                  {['Date', 'Category', 'Amount (USD)', 'Notes', ''].map(h => (
+                  {['Date', 'Category', 'Amount (USD)', 'Payment', 'Notes', ''].map(h => (
                     <th key={h} className="whitespace-nowrap px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                   ))}
                 </tr>
@@ -267,6 +270,25 @@ export function CostLog({ overheads }: CostLogProps) {
                           )}
                         </td>
 
+                        {/* Payment Method */}
+                        <td className="px-4 py-3.5">
+                          {isEditing ? (
+                            <select value={editPaymentMethod} onChange={e => setEditPaymentMethod(e.target.value)}
+                              className="h-8 rounded-lg border border-white/10 bg-[#111] px-2 text-xs text-foreground focus:border-primary/40 focus:outline-none">
+                              {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          ) : (
+                            <span className={cn(
+                              'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+                              row.paymentMethod === 'Zelle'
+                                ? 'bg-violet-500/10 text-violet-400'
+                                : 'bg-emerald-500/10 text-emerald-400',
+                            )}>
+                              {row.paymentMethod ?? 'Cash'}
+                            </span>
+                          )}
+                        </td>
+
                         {/* Notes */}
                         <td className="px-4 py-3.5 max-w-[220px]">
                           {isEditing ? (
@@ -326,7 +348,7 @@ export function CostLog({ overheads }: CostLogProps) {
                       {/* Confirm banner */}
                       {isConfirming && (
                         <tr key={`${row.id}-confirm`} className="border-b border-destructive/10 bg-destructive/5">
-                          <td colSpan={5} className="px-4 py-2 text-xs text-destructive/80">
+                          <td colSpan={6} className="px-4 py-2 text-xs text-destructive/80">
                             Delete this cost entry? This will also affect dashboard totals. Click the red trash icon to confirm.
                           </td>
                         </tr>

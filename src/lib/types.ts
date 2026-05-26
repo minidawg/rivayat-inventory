@@ -48,9 +48,9 @@ export type Database = {
         Relationships: []
       }
       overheads: {
-        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null; tenant_id: string }
-        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null; tenant_id: string }
-        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null; tenant_id?: string }
+        Row:    { id: string; created_at: string; category: string; amount: number; expense_date: string; notes: string | null; tenant_id: string; payment_method: string | null }
+        Insert: { id?: string; created_at?: string; category: string; amount: number; expense_date?: string; notes?: string | null; tenant_id: string; payment_method?: string | null }
+        Update: { id?: string; created_at?: string; category?: string; amount?: number; expense_date?: string; notes?: string | null; tenant_id?: string; payment_method?: string | null }
         Relationships: []
       }
       audit_logs: {
@@ -193,6 +193,7 @@ export interface OverheadRow {
   amount: number
   expenseDate: string
   notes: string | null
+  paymentMethod: string | null
 }
 
 export interface BrandWithCollections {

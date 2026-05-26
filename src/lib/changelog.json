@@ -24,7 +24,11 @@
       "Dashboard charts: removed Profit by Brand donut; added Revenue by Channel panel with horizontal bars showing USD and % per channel",
       "Terminology: renamed Record Cost → Record Expense and Cost Log → Expense Log in sidebar and page headers (routes and DB tables unchanged)",
       "Moved developer changelog from DB (settings table) to static src/lib/changelog.json — no SQL needed to update it anymore",
-      "Confirmed low stock toggle logic (lowStockAlertsEnabled) fully intact after dashboard refactor"
+      "Confirmed low stock toggle logic (lowStockAlertsEnabled) fully intact after dashboard refactor",
+      "Dashboard layout: removed max-w-[960px] container constraint — KPI cards and charts now expand to fill available width next to sidebar",
+      "Expenses: added payment_method column (Cash/Zelle, default Cash) to overheads table — migration SQL provided to user",
+      "Record Expense form: added Payment Method dropdown (Cash/Zelle, defaults to Cash), shown in summary sidebar, included in insert payload",
+      "Expense Log: added Payment Method column with color-coded badges (green=Cash, violet=Zelle), editable inline, included in CSV export"
     ]
   }
 ]

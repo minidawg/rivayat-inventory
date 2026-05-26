@@ -13,7 +13,7 @@ export default async function DashboardLayout({
     <div className="min-h-screen bg-background">
       <Sidebar exchangeRate={exchangeRate} isConnected={true} />
       <main className="md:ml-[260px] min-h-screen">
-        <div className="mx-auto max-w-[960px] px-4 py-6 md:px-7 md:py-8">
+        <div className="w-full px-4 py-6 md:px-7 md:py-8">
           {children}
         </div>
       </main>

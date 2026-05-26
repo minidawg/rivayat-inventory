@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { recordCost } from '@/lib/actions'
-import { OVERHEAD_CATEGORIES } from '@/lib/types'
+import { OVERHEAD_CATEGORIES, PAYMENT_METHODS } from '@/lib/types'
 import { Receipt, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -26,12 +26,13 @@ export function RecordCost() {
 
   const todayISO = new Date().toISOString().slice(0, 10)
 
-  const [category,    setCategory]    = useState<string>(OVERHEAD_CATEGORIES[0])
-  const [amount,      setAmount]      = useState('')
-  const [date,        setDate]        = useState(todayISO)
-  const [notes,       setNotes]       = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [success,     setSuccess]     = useState(false)
+  const [category,       setCategory]       = useState<string>(OVERHEAD_CATEGORIES[0])
+  const [amount,         setAmount]         = useState('')
+  const [date,           setDate]           = useState(todayISO)
+  const [notes,          setNotes]          = useState('')
+  const [paymentMethod,  setPaymentMethod]  = useState<string>('Cash')
+  const [isSubmitting,   setIsSubmitting]   = useState(false)
+  const [success,        setSuccess]        = useState(false)
 
   const isValid = !!category && !!amount && Number(amount) > 0 && !!date
 
@@ -39,7 +40,7 @@ export function RecordCost() {
     if (!isValid) return
     setIsSubmitting(true)
     try {
-      const result = await recordCost(category, Number(amount), date, notes)
+      const result = await recordCost(category, Number(amount), date, notes, paymentMethod)
       if (result?.error) {
         toast.error(result.error)
       } else {
@@ -51,6 +52,7 @@ export function RecordCost() {
           setAmount('')
           setDate(todayISO)
           setNotes('')
+          setPaymentMethod('Cash')
           router.refresh()
         }, 1400)
       }
@@ -119,6 +121,16 @@ export function RecordCost() {
             </div>
           </div>
 
+          {/* Payment Method */}
+          <div>
+            <FieldLabel>Payment Method *</FieldLabel>
+            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className={selectClass}>
+              {PAYMENT_METHODS.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Notes */}
           <div>
             <FieldLabel>Notes <span className="font-normal lowercase tracking-normal text-muted-foreground/50">(optional)</span></FieldLabel>
@@ -164,6 +176,11 @@ export function RecordCost() {
               <div className="rounded-xl bg-white/[0.03] px-4 py-3">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Date</div>
                 <div className="text-sm font-semibold tabular">{date}</div>
+              </div>
+
+              <div className="rounded-xl bg-white/[0.03] px-4 py-3">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Payment Method</div>
+                <div className="text-sm font-semibold">{paymentMethod}</div>
               </div>
             </div>
 

@@ -224,7 +224,7 @@ export async function getOverheads(): Promise<OverheadRow[]> {
     const client = await getSupabaseServerClient()
     const { data } = await client
       .from('overheads')
-      .select('id, created_at, category, amount, expense_date, notes')
+      .select('id, created_at, category, amount, expense_date, notes, payment_method')
       .order('expense_date', { ascending: false })
     if (!data) return []
     return (data as any[]).map((r) => ({
@@ -234,6 +234,7 @@ export async function getOverheads(): Promise<OverheadRow[]> {
       amount: Number(r.amount),
       expenseDate: r.expense_date,
       notes: r.notes ?? null,
+      paymentMethod: r.payment_method ?? null,
     }))
   } catch (error) {
     console.error('[getOverheads] failed:', error)
