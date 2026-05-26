@@ -13,7 +13,10 @@ export async function getSupabaseServerClient() {
   const client = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
+    {
+      auth: { persistSession: false },
+      global: { headers: { 'x-tenant-id': TENANT_ID } },
+    }
   );
 
   if (accessToken && refreshToken) {
@@ -50,9 +53,6 @@ export async function getSupabaseServerClient() {
       }
     }
   }
-
-  // Set tenant context for RLS policies
-  await client.rpc('set_tenant_id', { p_tenant_id: TENANT_ID });
 
   return client;
 }
