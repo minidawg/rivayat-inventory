@@ -109,7 +109,7 @@ export function Settings({ brands, lowStockAlerts, usdRate, onSuccess }: Setting
     if (clearInput !== 'DELETE') return
     setIsClearing(true)
     try {
-      const result = await clearAllData()
+      const result = await clearAllData(clearInput)
       if (result?.error) { toast.error(result.error) }
       else { router.refresh(); setClearInput(''); setShowClearBox(false); onSuccess?.() }
     } catch (err: any) { toast.error(err?.message || 'Failed to clear data.') }

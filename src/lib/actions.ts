@@ -2,7 +2,7 @@
 
 import { getSupabaseServerClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { OVERHEAD_CATEGORIES } from '@/lib/types'
+import { OVERHEAD_CATEGORIES, SIZES } from '@/lib/types'
 
 // ─── Image Upload ─────────────────────────────────────────────────────────────
 
@@ -301,8 +301,7 @@ export async function addSku(
   avgCostPKR: number,
   avgExchangeRate: number,
 ): Promise<{ error?: string }> {
-  const VALID_SIZES = ['XS','S','M','L','XL','XXL','XXXL','34','36','38','40','42','44','46']
-  if (!VALID_SIZES.includes(size)) return { error: `Invalid size: ${size}` }
+  if (!(SIZES as readonly string[]).includes(size)) return { error: `Invalid size: ${size}` }
   if (quantity < 0)       return { error: 'Quantity cannot be negative.' }
   if (lowStockBuffer < 0) return { error: 'Buffer cannot be negative.' }
 
@@ -391,9 +390,12 @@ export async function deleteArticle(articleId: string): Promise<{ error?: string
 // ─── Brands & Collections ─────────────────────────────────────────────────────
 
 export async function addBrand(name: string): Promise<{ error?: string }> {
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Brand name cannot be empty.' }
+  if (trimmed.length > 100) return { error: 'Brand name must be 100 characters or fewer.' }
   try {
     const client = await getSupabaseServerClient()
-    const { error } = await client.from('brands').insert({ name })
+    const { error } = await client.from('brands').insert({ name: trimmed })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}
@@ -415,9 +417,13 @@ export async function deleteBrand(brandId: string): Promise<{ error?: string }> 
 }
 
 export async function addCollection(name: string, brandId: string): Promise<{ error?: string }> {
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Collection name cannot be empty.' }
+  if (trimmed.length > 100) return { error: 'Collection name must be 100 characters or fewer.' }
+  if (!brandId) return { error: 'Brand is required.' }
   try {
     const client = await getSupabaseServerClient()
-    const { error } = await client.from('collections').insert({ name, brand_id: brandId })
+    const { error } = await client.from('collections').insert({ name: trimmed, brand_id: brandId })
     if (error) throw error
     revalidatePath('/', 'layout')
     return {}
@@ -438,7 +444,8 @@ export async function deleteCollection(collectionId: string): Promise<{ error?: 
   }
 }
 
-export async function clearAllData(): Promise<{ error?: string }> {
+export async function clearAllData(confirmation: string): Promise<{ error?: string }> {
+  if (confirmation !== 'DELETE') return { error: 'Confirmation text does not match.' }
   try {
     const client = await getSupabaseServerClient()
     await client.from('sales').delete().not('id', 'is', null)
