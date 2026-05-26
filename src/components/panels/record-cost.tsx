@@ -102,6 +102,7 @@ export function RecordCost() {
                   type="number"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
+                  onWheel={e => e.currentTarget.blur()}
                   placeholder="e.g. 150"
                   min="0.01"
                   step="0.01"

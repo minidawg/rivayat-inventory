@@ -301,3 +301,13 @@ html:not(.theme-amethyst) [class*="border-[rgba(255,255,255,"] {
 
 /* ─── Number display (large, aligned) ────────────────────────────────────── */
 .num-display { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* ─── Hide number input spinners ─────────────────────────────────────────── */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}

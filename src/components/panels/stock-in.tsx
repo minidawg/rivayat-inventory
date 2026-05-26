@@ -263,6 +263,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                       </button>
                       <input type="number" min="1" value={row.quantity}
                         onChange={e => updateRow(row.id, 'quantity', Math.max(1, Number(e.target.value)))}
+                        onWheel={e => e.currentTarget.blur()}
                         className="flex-1 bg-transparent text-center text-sm font-semibold tabular focus:outline-none w-0" />
                       <button onClick={() => stepQty(row.id, 1)}
                         className="flex h-full w-9 shrink-0 items-center justify-center text-muted-foreground hover:bg-white/5 hover:text-primary transition-all">
@@ -305,6 +306,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₨</span>
                   <Input type="number" value={costPKR} onChange={e => setCostPKR(e.target.value)}
+                    onWheel={e => e.currentTarget.blur()}
                     placeholder="e.g. 14500"
                     className="pl-7 h-11 bg-[#111] border-white/10 focus:border-primary/40 tabular" />
                 </div>
@@ -316,6 +318,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₨</span>
                   <Input type="number" value={commissionPKR} onChange={e => setCommissionPKR(e.target.value)}
+                    onWheel={e => e.currentTarget.blur()}
                     placeholder="e.g. 1500"
                     className="pl-7 h-11 bg-[#111] border-white/10 focus:border-primary/40 tabular" />
                 </div>
@@ -327,6 +330,7 @@ export function StockIn({ brands, exchangeRate, onSuccess }: StockInProps) {
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₨</span>
                   <Input type="number" value={shippingPKR} onChange={e => setShippingPKR(e.target.value)}
+                    onWheel={e => e.currentTarget.blur()}
                     placeholder="e.g. 500"
                     className="pl-7 h-11 bg-[#111] border-white/10 focus:border-primary/40 tabular" />
                 </div>

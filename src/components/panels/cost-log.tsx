@@ -262,6 +262,7 @@ export function CostLog({ overheads }: CostLogProps) {
                             <div className="relative w-28">
                               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
                               <Input type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)}
+                                onWheel={e => e.currentTarget.blur()}
                                 min="0.01" step="0.01"
                                 className="h-8 pl-5 bg-[#111] border-white/10 focus:border-primary/40 text-xs tabular" />
                             </div>

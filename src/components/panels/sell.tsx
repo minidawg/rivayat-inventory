@@ -300,6 +300,7 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
                             type="number" min="0" max={item.available}
                             value={item.quantity || ''}
                             onChange={e => updateField(item.skuId, 'quantity', Number(e.target.value))}
+                            onWheel={e => e.currentTarget.blur()}
                             className="flex-1 bg-transparent text-center text-sm font-semibold tabular focus:outline-none w-0"
                           />
                           <button onClick={() => stepQty(item.skuId, 1)} disabled={item.quantity >= item.available}
@@ -318,6 +319,7 @@ export function Sell({ inventory, exchangeRate, previousClients, onSuccess }: Se
                             type="number" min="0" step="0.01"
                             value={item.sellingPriceUSD}
                             onChange={e => updateField(item.skuId, 'sellingPriceUSD', e.target.value)}
+                            onWheel={e => e.currentTarget.blur()}
                             className="pl-7 h-10 bg-[#111] border-white/10 focus:border-primary/40 tabular"
                           />
                         </div>
