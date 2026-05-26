@@ -1,5 +1,7 @@
 // ─── Supabase Database type (mirrors 0001_initial_schema.sql) ────────────────
 
+type Json = string | number | boolean | null | { [key: string]: Json } | Json[]
+
 export type Database = {
   public: {
     Tables: {
@@ -59,7 +61,7 @@ export type Database = {
         Returns: { id?: string; remaining?: number; error?: string }
       }
       record_multi_sale: {
-        Args: { p_items: string; p_channel?: string | null; p_client_name?: string | null; p_payment_method?: string | null }
+        Args: { p_items: Json; p_channel?: string | null; p_client_name?: string | null; p_payment_method?: string | null }
         Returns: { success?: boolean; error?: string }
       }
       delete_sale_atomic: {
